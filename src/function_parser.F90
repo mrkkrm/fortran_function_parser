@@ -66,44 +66,68 @@
     ! [they must have the values that correspond to the array indices below]
     integer, parameter ::   cImmed   = 1
     integer, parameter ::   cNeg     = 2
-    integer, parameter ::   cAdd     = 3, &    ! Operators
-                            cSub     = 4, &
-                            cMul     = 5, &
-                            cDiv     = 6, &
-                            cPow     = 7
-    integer, parameter ::   cAbs     = 8,  &   ! Functions
-                            cExp     = 9,  &
-                            cLog10   = 10, &
-                            cLog     = 11, &
-                            cSqrt    = 12, &
-                            cSinh    = 13, &
-                            cCosh    = 14, &
-                            cTanh    = 15, &
-                            cSin     = 16, &
-                            cCos     = 17, &
-                            cTan     = 18, &
-                            cAsin    = 19, &
-                            cAcos    = 20, &
-                            cAtan2   = 21, &    ! atan2 must precede atan to prevent aliasing.
-                            cAtan    = 22, &
-                            cPi      = 23, &    ! Pi (function with zero arguments)
-                            cCeil    = 24, &
-                            cFloor   = 25, &
-                            cGamma   = 26, &
-                            cHypot   = 27, &
-                            cMax     = 28, &
-                            cMin     = 29, &
-                            cModulo  = 30, &
-                            cMod     = 31, &
-                            cSign    = 32, &
-                            cIf      = 33     ! if (three arguments)
-    integer, parameter ::   VarBegin = 34
+    integer, parameter ::   cNot     = 3  ! Unary logical .not. operator (!, ~, .not.)
 
-    character(len=1), dimension(cAdd:cPow), parameter ::  operators = [ '+', &  ! plus
-                                                                        '-', &  ! minus
-                                                                        '*', &  ! multiply
-                                                                        '/', &  ! divide
-                                                                        '^'  ]  ! power
+    integer, parameter ::   cAdd     = 4,  &    ! Operators
+                            cSub     = 5,  &
+                            cMul     = 6,  &
+                            cDiv     = 7,  &
+                            cPow     = 8,  &
+                            cEq      = 9,  &
+                            cNe      = 10, &
+                            cGt      = 11, &
+                            cLt      = 12, &
+                            cGe      = 13, &
+                            cLe      = 14, &
+                            cAnd     = 15, &
+                            cOr      = 16, &
+                            cNeqv    = 17
+
+    integer, parameter ::   cAbs     = 10 + 8,  &   ! Functions
+                            cExp     = 10 + 9,  &
+                            cLog10   = 10 + 10, &
+                            cLog     = 10 + 11, &
+                            cSqrt    = 10 + 12, &
+                            cSinh    = 10 + 13, &
+                            cCosh    = 10 + 14, &
+                            cTanh    = 10 + 15, &
+                            cSin     = 10 + 16, &
+                            cCos     = 10 + 17, &
+                            cTan     = 10 + 18, &
+                            cAsin    = 10 + 19, &
+                            cAcos    = 10 + 20, &
+                            cAtan2   = 10 + 21, &    ! atan2 must precede atan to prevent aliasing.
+                            cAtan    = 10 + 22, &
+                            cPi      = 10 + 23, &    ! Pi (function with zero arguments)
+                            cCeil    = 10 + 24, &
+                            cFloor   = 10 + 25, &
+                            cGamma   = 10 + 26, &
+                            cHypot   = 10 + 27, &
+                            cMax     = 10 + 28, &
+                            cMin     = 10 + 29, &
+                            cModulo  = 10 + 30, &
+                            cMod     = 10 + 31, &
+                            cSign    = 10 + 32, &
+                            cIf      = 10 + 33     ! if (three arguments)
+
+    integer, parameter ::   VarBegin = 10 + 34
+
+    ! List of operators for use later: +-*/^=#><][&|@!
+    ! All operators mapped to single character
+    character(len=1), dimension(cAdd:cNeqv), parameter ::  operators = [ '+', &  ! plus
+                                                                         '-', &  ! minus
+                                                                         '*', &  ! multiply
+                                                                         '/', &  ! divide
+                                                                         '^', &  ! power
+                                                                         '=', &  ! *** equal (=, ==, .eq.)
+                                                                         '#', &  ! *** not equal (/=, !=, ~=, .ne.)
+                                                                         '>', &  ! *** greater than (>, .gt.)
+                                                                         '<', &  ! *** less than (<, .lt.)
+                                                                         ']', &  ! *** greater than or equal (>=, .ge.)
+                                                                         '[', &  ! *** less than or equal (<=, .le.)
+                                                                         '&', &  ! *** and (&, .and.)
+                                                                         '|', &  ! *** or (|, .or.)
+                                                                         '@']    ! *** neqv (.neqv., .xor.)
 
     character(len=7), dimension(cAbs:cIf), parameter :: functions = [    'abs    ', &
                                                                          'exp    ', &
@@ -492,8 +516,29 @@
     ipos = [ (k,k=1,size(ipos)) ]
 
     !preprocess and check syntax:
-    call replace_string ('**','^ ',func)      ! exponent into 1-char. format
+    call replace_string ('**',     '^', func)  ! convert exponent into 1-char. format
+
+    call replace_string ('==',     '=', func)  ! convert relational and logicals to 1-char. format
+    call replace_string ('.eq.',   '=', func)
+    call replace_string ('/=',     '#', func)
+    call replace_string ('!=',     '#', func)
+    call replace_string ('~=',     '#', func)
+    call replace_string ('.ne.',   '#', func)
+    call replace_string ('.gt.',   '>', func)
+    call replace_string ('.lt.',   '<', func)
+    call replace_string ('<=',     '[', func)
+    call replace_string ('.le.',   '[', func)
+    call replace_string ('>=',     ']', func)
+    call replace_string ('.ge.',   ']', func)
+    call replace_string ('.and.',  '&', func)
+    call replace_string ('.or.',   '|', func)
+    call replace_string ('.neqv.', '@', func)
+    call replace_string ('.xor.',  '@', func)
+    call replace_string ('~',      '!', func)
+    call replace_string ('.not.',  '!', func)
+
     call remove_spaces (func,ipos)            ! condense function string
+
     call me%check_syntax(func,funcstr,tmp_var,ipos)
 
     ! Do not compile if `check_syntax` failed.
@@ -766,6 +811,301 @@
 
     end subroutine cpow_func
 !******************************************************************
+
+
+!********************************************************************************************************************
+!********************************************************************************************************************
+
+
+!******************************************************************
+!>
+!  Relational Equal
+
+    subroutine ceq_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+    
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if (me%stack(sp-1) .eq. me%stack(sp)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine ceq_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Relational Not Equal
+
+    subroutine cne_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if (me%stack(sp-1) .ne. me%stack(sp)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine cne_func
+!******************************************************************
+
+
+!******************************************************************
+!>
+!  Relational Greater Than
+
+    subroutine cgt_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if (me%stack(sp-1) .gt. me%stack(sp)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine cgt_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Relational Less Than
+
+    subroutine clt_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if (me%stack(sp-1) .lt. me%stack(sp)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine clt_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Relational Greater Than Or Equal
+
+    subroutine cge_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if (me%stack(sp-1) .ge. me%stack(sp)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine cge_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Relational Less Than Or Equal
+
+    subroutine cle_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if (me%stack(sp-1) .le. me%stack(sp)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine cle_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Logical AND
+
+    subroutine cand_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if ((me%stack(sp-1) /= zero) .and. (me%stack(sp) /= zero)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine cand_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Logical OR
+
+    subroutine cor_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if ((me%stack(sp-1) /= zero) .or. (me%stack(sp) /= zero)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine cor_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Logical NEQV (XOR)
+
+    subroutine cneqv_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if ((me%stack(sp-1) /= zero) .neqv. (me%stack(sp) /= zero)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine cneqv_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Logical EQV
+
+    subroutine ceqv_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if ((me%stack(sp-1) /= zero) .eqv. (me%stack(sp) /= zero)) then
+        me%stack(sp-1) = one
+    else
+        me%stack(sp-1) = zero
+    endif
+    sp=sp-1
+    ierr = 0
+    
+    end subroutine ceqv_func
+!******************************************************************
+
+!******************************************************************
+!>
+!  Logical NOT
+
+    subroutine cnot_func(me,ip,dp,sp,val,ierr)
+
+    implicit none
+
+    class(fparser),intent(inout)     :: me
+    integer,intent(in)               :: ip    !! instruction pointer
+    integer,intent(inout)            :: dp    !! data pointer
+    integer,intent(inout)            :: sp    !! stack pointer
+    real(wp),dimension(:),intent(in) :: val   !! variable values
+    integer,intent(out)              :: ierr  !! error flag
+
+    if ( .not. (me%stack(sp) /= zero) ) then
+        me%stack(sp) = one
+    else
+        me%stack(sp) = zero
+    endif
+    ierr = 0
+    
+    end subroutine cnot_func
+!******************************************************************
+
+!********************************************************************************************************************
+!********************************************************************************************************************
+
 
 !******************************************************************
 !>
@@ -1544,7 +1884,7 @@
 
         c = func(j:j)
         ! Check for valid operand (must appear)
-        if (c == '-' .or. c == '+') then                      ! Check for leading - or +
+        if (c == '-' .or. c == '+' .or. c == '!') then                      ! Check for leading - or +
             j = j+1
             if (j > lFunc) then
                 call me%add_error(j, ipos, funcstr, 'Missing operand')
@@ -1756,7 +2096,7 @@
     integer :: j  !! counter
 
     n = 0
-    do j=cadd,cpow
+    do j=cadd,cNeqv
         if (c == operators(j)) then
             n = j
             exit
@@ -1833,7 +2173,7 @@
             if (str(ib:ib) /= ' ') exit                ! when lstr>0 at least 1 char in str
         end do
         do in=ib,lstr                                  ! search for name terminators
-            if (scan(str(in:in),'+-*/^) ') > 0) exit   ! NOTE: all the operators must be here [cAdd,cSub,cMul,cDiv,cPow]
+            if (scan(str(in:in),'+-*/^=#><][&|@!) ') > 0) exit   ! NOTE: all the operators must be here [cAdd,cSub,cMul,cDiv,cPow]
         end do
         do j=1,size(var)
             if (str(ib:in-1) == var(j)) then
@@ -1884,15 +2224,21 @@
 
     implicit none
 
-    character(len=*),intent(in)       :: ca
-    character(len=len(ca)),intent(in) :: cb    !! `len(ca)` must be `len(cb)`
-    character(len=*),intent(inout)    :: str
+    character(len=*),intent(in)    :: ca
+    character(len=*),intent(in)    :: cb
+    character(len=*),intent(inout) :: str
 
-    integer :: j,lca
+    character(len=len_trim(ca)) :: cax, cbx  !! `len(cax)` must be `len(cbx)`
 
-    lca = len(ca)
+    integer :: j, lca
+
+    cax = ca
+    cbx = cb
+
+    lca = len(cax)
+
     do j=1,len_trim(str)-lca+1
-        if (str(j:j+lca-1) == ca) str(j:j+lca-1) = cb
+        if (str(j:j+lca-1) == cax) str(j:j+lca-1) = cbx
     end do
 
     end subroutine replace_string
@@ -1983,6 +2329,18 @@
         case   (cMul);          me%bytecode_ops(me%bytecodesize)%f => cmul_func
         case   (cDiv);          me%bytecode_ops(me%bytecodesize)%f => cdiv_func
         case   (cPow);          me%bytecode_ops(me%bytecodesize)%f => cpow_func
+
+        case    (cEq);          me%bytecode_ops(me%bytecodesize)%f => ceq_func
+        case    (cNe);          me%bytecode_ops(me%bytecodesize)%f => cne_func
+        case    (cGt);          me%bytecode_ops(me%bytecodesize)%f => cgt_func
+        case    (cLt);          me%bytecode_ops(me%bytecodesize)%f => clt_func
+        case    (cGe);          me%bytecode_ops(me%bytecodesize)%f => cge_func
+        case    (cLe);          me%bytecode_ops(me%bytecodesize)%f => cle_func
+        case   (cAnd);          me%bytecode_ops(me%bytecodesize)%f => cand_func
+        case    (cOr);          me%bytecode_ops(me%bytecodesize)%f => cor_func
+        case  (cNeqv);          me%bytecode_ops(me%bytecodesize)%f => cneqv_func
+        case   (cNot);          me%bytecode_ops(me%bytecodesize)%f => cnot_func
+
         case   (cabs);          me%bytecode_ops(me%bytecodesize)%f => cabs_func
         case   (cExp);          me%bytecode_ops(me%bytecodesize)%f => cexp_func
         case (cLog10);          me%bytecode_ops(me%bytecodesize)%f => clog10_func
@@ -2106,7 +2464,7 @@
                                             'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
     integer :: arg_pos(max_func_args)
-    integer :: num_args, iarg
+    integer :: num_args, iarg, c_unary
 
     ! check for special cases of substring
     if (f(b:b) == '+') then                                     ! case 1: f(b:e) = '+...'
@@ -2142,10 +2500,14 @@
                 return
             end if
         end if
-    elseif (f(b:b) == '-') then
+    elseif (f(b:b) == '-' .or. f(b:b) == '!') then
+        select case (f(b:b))
+        case ('-'); c_unary = cneg
+        case ('!'); c_unary = cnot
+        end select
         if (completely_enclosed (f, b+1, e)) then               ! case 4: f(b:e) = '-(...)'
             call compile_substr (me, f, b+2, e-1, var)
-            call add_compiled_byte (me, cneg)
+            call add_compiled_byte (me, c_unary)
             return
         elseif (scan(f(b+1:b+1),calpha) > 0) then
             n = mathfunction_index (f(b+1:e), var)
@@ -2171,7 +2533,7 @@
                     end if
 
                     call add_compiled_byte (me, n, num_args)
-                    call add_compiled_byte (me, cneg)
+                    call add_compiled_byte (me, c_unary)
                     return
                 end if
             end if
@@ -2179,7 +2541,7 @@
     end if
 
     ! check for operator in substring: check only base level (k=0), exclude expr. in ()
-    do io=cadd,cpow                                          ! increasing priority +-*/^
+    do io=cadd,cNeqv                                          ! increasing priority +-*/^
         k = 0
         do j=e,b,-1
             if (f(j:j) == ')') then
@@ -2188,9 +2550,13 @@
                 k = k-1
             end if
         if (k == 0 .and. f(j:j) == operators(io) .and. is_binary_operator (j, f)) then
-                if (any(f(j:j) == operators(cmul:cpow)) .and. f(b:b) == '-') then ! case 6: f(b:e) = '-...op...' with op > -
+                if (any(f(j:j) == operators(cmul:cNeqv)) .and. (f(b:b) == '-' .or. f(b:b) == '!') ) then ! case 6: f(b:e) = '-...op...' with op > -
+                    select case (f(b:b))
+                    case ('-'); c_unary = cneg
+                    case ('!'); c_unary = cnot
+                    end select
                     call compile_substr (me, f, b+1, e, var)
-                    call add_compiled_byte (me, cneg)
+                    call add_compiled_byte (me, c_unary)
                     return
                 else                                                        ! case 7: f(b:e) = '...binop...'
                     call compile_substr (me, f, b, j-1, var)
@@ -2205,12 +2571,18 @@
 
     ! check for remaining items, i.e. variables or explicit numbers
     b2 = b
-    if (f(b:b) == '-') b2 = b2+1
+    if (f(b:b) == '-' .or. f(b:b) == '!') then
+        select case (f(b:b))
+        case ('-'); c_unary = cneg
+        case ('!'); c_unary = cnot
+        end select
+        b2 = b2+1
+    endif
     n = mathitem_index(me, f(b2:e), var)
     call add_compiled_byte (me, n)
     me%stackptr = me%stackptr + 1
     if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
-    if (b2 > b) call add_compiled_byte (me, cneg)
+    if (b2 > b) call add_compiled_byte (me, c_unary)
 
     end subroutine compile_substr
 !*******************************************************************************
@@ -2234,10 +2606,10 @@
     logical :: dflag,pflag
 
     res=.true.
-    if (f(j:j) == '+' .or. f(j:j) == '-') then              ! plus or minus sign:
+    if (f(j:j) == '+' .or. f(j:j) == '-' .or. f(j:j) == '!') then              ! plus or minus sign:
         if (j == 1) then                                    ! - leading unary operator ?
             res = .false.
-        elseif (scan(f(j-1:j-1),',+-*/^(') > 0) then        ! - other unary operator ?   (or comma from multi-arg functions)
+        elseif (scan(f(j-1:j-1),',+-*/^=#><][&|@!(') > 0) then        ! - other unary operator ?   (or comma from multi-arg functions)
             res = .false.
         elseif (scan(f(j+1:j+1),'0123456789') > 0 .and. &   ! - in exponent of real number ?
                 scan(f(j-1:j-1),'eEdD')       > 0) then
@@ -2258,7 +2630,7 @@
                     exit                                    !   * all other characters
                 end if
             end do
-            if (dflag .and. (k == 1 .or. scan(f(k:k),',+-*/^(') > 0)) res = .false.  ! need the comma here too ??
+            if (dflag .and. (k == 1 .or. scan(f(k:k),',+-*/^=#><][&|@!(') > 0)) res = .false.  ! need the comma here too ??
         end if
     end if
 

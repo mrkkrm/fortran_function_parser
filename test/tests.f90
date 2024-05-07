@@ -10,7 +10,7 @@
 
     implicit none
 
-    call fptest()
+    call fptest1()
     call fptest2()
     call fptest3()
     call fptest4()
@@ -19,12 +19,13 @@
     call fptest7()
     call error_tests()
     call fptest8()
+    call fptest9()
 
     contains
 !*******************************************************************************
 
 !*******************************************************************************
-    subroutine fptest()
+    subroutine fptest1()
 
     character(len=*),parameter :: func = '-x'
     integer,parameter :: nvar = 1  !! number of variables
@@ -53,7 +54,7 @@
         call compare('-x', -x, res)
     end if
 
-    end subroutine fptest
+    end subroutine fptest1
 !*******************************************************************************
 
 !*******************************************************************************
@@ -159,7 +160,7 @@
 
     implicit none
 
-    integer, parameter :: neval = 1000000
+    integer, parameter :: neval = 1e6
     integer, parameter :: nfunc = 3
     character (len=*), dimension(nfunc), parameter :: func = [ 'vel*cos(beta)           ', &
                                                                'vel*sin(beta)*cos(alpha)', &
@@ -611,6 +612,177 @@
 
     end subroutine compare
 !*******************************************************************************
+
+
+!*******************************************************************************
+    subroutine fptest9()
+
+    implicit none
+
+    character (len=*), dimension(*), parameter :: func = [ character(len=20) :: &
+                                                                'A == B',       &
+                                                                'A == A',       &
+                                                                'A = B',        &
+                                                                'A = A',        &
+                                                                'A .eq. B',     &
+                                                                'A .eq. A',     &
+                                                                'A != B',       &
+                                                                'A != A',       &
+                                                                'A /= B',       &
+                                                                'A /= A',       &
+                                                                'A ~= B',       &
+                                                                'A ~= A',       &
+                                                                'A .ne. B',     &
+                                                                'A .ne. A',     &
+                                                                'A > B',        &
+                                                                'A > A',        &
+                                                                'A .gt. B',     &
+                                                                'A .gt. A',     &
+                                                                'A < B',        &
+                                                                'A < A',        &
+                                                                'A .lt. B',     &
+                                                                'A .lt. A',     &
+                                                                'A >= B',       &
+                                                                'A >= A',       &
+                                                                'A .ge. B',     &
+                                                                'A .ge. A',     &
+                                                                'A <= B',       &
+                                                                'A <= A',       &
+                                                                'A .le. B',     &
+                                                                'A .le. A',     &
+                                                                'A & B',        &
+                                                                'A & A',        &
+                                                                'A .and. B',    &
+                                                                'A .and. A',    &
+                                                                'B | B',        &
+                                                                'A | B',        &
+                                                                'B | A',        &
+                                                                'A | A',        &
+                                                                'B .or. B',     &
+                                                                'A .or. B',     &
+                                                                'B .or. A',     &
+                                                                'A .or. A',     &
+                                                                'B .neqv. B',   &
+                                                                'A .neqv. B',   &
+                                                                'B .neqv. A',   &
+                                                                'A .neqv. A',   &
+                                                                'B .xor. B',    &
+                                                                'A .xor. B',    &
+                                                                'B .xor. A',    &
+                                                                'A .xor. A',    &
+                                                                '! A',          &
+                                                                '! B',          &
+                                                                '~ A',          &
+                                                                '~ B',          &
+                                                                '.not. A',      &
+                                                                '.not. B'       ]
+    integer, parameter :: nfunc = size(func)
+    character (len=*), dimension(*),  parameter :: var  = ['A', 'B']
+    integer, parameter :: nvar = size(var)
+    real(wp), dimension(nvar), parameter :: val  = [ 3.14_wp, 0.0_wp]
+
+    type(fparser_array) :: parser
+    real(wp), dimension(nfunc) :: res, answer
+    real(wp) :: A, B
+    integer :: idx
+
+    write(*,*) ''
+    write(*,*) ' Test 9: RELATIONAL and LOGICAL operators'
+    write(*,*) ''
+
+    A = val(1)
+    B = val(2)
+    
+    answer = [ R(   A == B   ), &
+               R(   A == A   ), &
+               R(   A == B   ), &
+               R(   A == A   ), &
+               R(   A == B   ), &
+               R(   A == A   ), &
+               R(   A /= B   ), &
+               R(   A /= A   ), &
+               R(   A /= B   ), &
+               R(   A /= A   ), &
+               R(   A /= B   ), &
+               R(   A /= A   ), &
+               R(   A /= B   ), &
+               R(   A /= A   ), &
+               R(   A > B    ), &
+               R(   A > A    ), &
+               R(   A > B    ), &
+               R(   A > A    ), &
+               R(   A < B    ), &
+               R(   A < A    ), &
+               R(   A < B    ), &
+               R(   A < A    ), &
+               R(   A >= B   ), &
+               R(   A >= A   ), &
+               R(   A >= B   ), &
+               R(   A >= A   ), &
+               R(   A <= B   ), &
+               R(   A <= A   ), &
+               R(   A <= B   ), &
+               R(   A <= A   ), &
+               R( L(A) .and.  L(B) ), &
+               R( L(A) .and.  L(A) ), &
+               R( L(A) .and.  L(B) ), &
+               R( L(A) .and.  L(A) ), &
+               R( L(B) .or.   L(B) ), &
+               R( L(A) .or.   L(B) ), &
+               R( L(B) .or.   L(A) ), &
+               R( L(A) .or.   L(A) ), &
+               R( L(B) .or.   L(B) ), &
+               R( L(A) .or.   L(B) ), &
+               R( L(B) .or.   L(A) ), &
+               R( L(A) .or.   L(A) ), &
+               R( L(B) .neqv. L(B) ), &
+               R( L(A) .neqv. L(B) ), &
+               R( L(B) .neqv. L(A) ), &
+               R( L(A) .neqv. L(A) ), &
+               R( L(B) .neqv. L(B) ), &
+               R( L(A) .neqv. L(B) ), &
+               R( L(B) .neqv. L(A) ), &
+               R( L(A) .neqv. L(A) ), &
+               R( .not. L(A) ), &
+               R( .not. L(B) ), &
+               R( .not. L(A) ), &
+               R( .not. L(B) ), &
+               R( .not. L(A) ), &
+               R( .not. L(B) )  ]
+
+    call parser%parse(func, var, .false.)  ! parse and bytecompile function string
+    if (parser%error()) then
+        call parser%print_errors(output_unit)
+        error stop
+    end if
+
+    call parser%evaluate(val,res)  ! interprete bytecode representation of function
+    if (parser%error()) then
+        call parser%print_errors(output_unit)
+    else 
+        do idx = 1,nfunc
+            call compare(func(idx), answer(idx), res(idx))
+        enddo
+    end if
+
+    end subroutine fptest9
+!*******************************************************************************
+
+    function R(L)
+        logical, intent(in) :: L
+        real(wp) :: R
+        if (L) then
+            R = 1.0_wp
+        else
+            R = 0.0_wp
+        endif
+    end function R
+
+    function L(R)
+        real(wp), intent(in) :: R
+        logical :: L
+        L = (R/=0.0_wp)
+    end function L
 
 !*******************************************************************************
     end program tests
