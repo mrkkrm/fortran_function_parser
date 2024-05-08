@@ -675,7 +675,23 @@
                                                                 '~ A',          &
                                                                 '~ B',          &
                                                                 '.not. A',      &
-                                                                '.not. B'       ]
+                                                                '.not. B',      &
+                                                                '(0 & 0) | (0 & 0)', &
+                                                                '(1 & 0) | (0 & 0)', &
+                                                                '(0 & 1) | (0 & 0)', &
+                                                                '(1 & 1) | (0 & 0)', &
+                                                                '(0 & 0) | (1 & 0)', &
+                                                                '(1 & 0) | (1 & 0)', &
+                                                                '(0 & 1) | (1 & 0)', &
+                                                                '(1 & 1) | (1 & 0)', &
+                                                                '(0 & 0) | (0 & 1)', &
+                                                                '(1 & 0) | (0 & 1)', &
+                                                                '(0 & 1) | (0 & 1)', &
+                                                                '(1 & 1) | (0 & 1)', &
+                                                                '(0 & 0) | (1 & 1)', &
+                                                                '(1 & 0) | (1 & 1)', &
+                                                                '(0 & 1) | (1 & 1)', &
+                                                                '(1 & 1) | (1 & 1)'  ]
     integer, parameter :: nfunc = size(func)
     character (len=*), dimension(*),  parameter :: var  = ['A', 'B']
     integer, parameter :: nvar = size(var)
@@ -748,7 +764,23 @@
                R( .not. L(A) ), &
                R( .not. L(B) ), &
                R( .not. L(A) ), &
-               R( .not. L(B) )  ]
+               R( .not. L(B) ), &
+               0.0_wp, &
+               0.0_wp, &
+               0.0_wp, &
+               1.0_wp, &
+               0.0_wp, &
+               0.0_wp, &
+               0.0_wp, &
+               1.0_wp, &
+               0.0_wp, &
+               0.0_wp, &
+               0.0_wp, &
+               1.0_wp, &
+               1.0_wp, &
+               1.0_wp, &
+               1.0_wp, &
+               1.0_wp  ]
 
     call parser%parse(func, var, .false.)  ! parse and bytecompile function string
     if (parser%error()) then
