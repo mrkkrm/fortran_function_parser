@@ -64,70 +64,81 @@
 
     ! Note: these should be continuous, unique integers:
     ! [they must have the values that correspond to the array indices below]
-    integer, parameter ::   cImmed   = 1
-    integer, parameter ::   cNeg     = 2
-    integer, parameter ::   cNot     = 3  ! Unary logical .not. operator (!, ~, .not.)
+    integer, parameter ::   cImmed   =  1
+    integer, parameter ::   cNeg     =  2
 
-    integer, parameter ::   cAdd     = 4,  &    ! Operators
-                            cSub     = 5,  &
-                            cMul     = 6,  &
-                            cDiv     = 7,  &
-                            cPow     = 8,  &
-                            cEq      = 9,  &
-                            cNe      = 10, &
-                            cGt      = 11, &
-                            cLt      = 12, &
-                            cGe      = 13, &
-                            cLe      = 14, &
-                            cAnd     = 15, &
-                            cOr      = 16, &
-                            cNeqv    = 17
+    integer, parameter ::   cNeqv    =  3, &  ! Logical Operators
+                            cEqv     =  4, &
+                            cOr      =  5, &
+                            cAnd     =  6, &
+                            cNot     =  7, &
+                            cEq      =  8, &  ! Relational Operators
+                            cNe      =  9, &
+                            cGt      = 10, &
+                            cLt      = 11, &
+                            cGe      = 12, &
+                            cLe      = 13, &
+                            cAdd     = 14, &  ! Arithmetic Operators
+                            cSub     = 15, &
+                            cMul     = 16, &
+                            cDiv     = 17, &
+                            cPow     = 18
 
-    integer, parameter ::   cAbs     = 10 + 8,  &   ! Functions
-                            cExp     = 10 + 9,  &
-                            cLog10   = 10 + 10, &
-                            cLog     = 10 + 11, &
-                            cSqrt    = 10 + 12, &
-                            cSinh    = 10 + 13, &
-                            cCosh    = 10 + 14, &
-                            cTanh    = 10 + 15, &
-                            cSin     = 10 + 16, &
-                            cCos     = 10 + 17, &
-                            cTan     = 10 + 18, &
-                            cAsin    = 10 + 19, &
-                            cAcos    = 10 + 20, &
-                            cAtan2   = 10 + 21, &    ! atan2 must precede atan to prevent aliasing.
-                            cAtan    = 10 + 22, &
-                            cPi      = 10 + 23, &    ! Pi (function with zero arguments)
-                            cCeil    = 10 + 24, &
-                            cFloor   = 10 + 25, &
-                            cGamma   = 10 + 26, &
-                            cHypot   = 10 + 27, &
-                            cMax     = 10 + 28, &
-                            cMin     = 10 + 29, &
-                            cModulo  = 10 + 30, &
-                            cMod     = 10 + 31, &
-                            cSign    = 10 + 32, &
-                            cIf      = 10 + 33     ! if (three arguments)
+    integer, parameter ::   cAbs     = 11 + 8,  &  ! Functions
+                            cExp     = 11 + 9,  &
+                            cLog10   = 11 + 10, &
+                            cLog     = 11 + 11, &
+                            cSqrt    = 11 + 12, &
+                            cSinh    = 11 + 13, &
+                            cCosh    = 11 + 14, &
+                            cTanh    = 11 + 15, &
+                            cSin     = 11 + 16, &
+                            cCos     = 11 + 17, &
+                            cTan     = 11 + 18, &
+                            cAsin    = 11 + 19, &
+                            cAcos    = 11 + 20, &
+                            cAtan2   = 11 + 21, &  ! atan2 must precede atan to prevent aliasing.
+                            cAtan    = 11 + 22, &
+                            cPi      = 11 + 23, &  ! Pi (function with zero arguments)
+                            cCeil    = 11 + 24, &
+                            cFloor   = 11 + 25, &
+                            cGamma   = 11 + 26, &
+                            cHypot   = 11 + 27, &
+                            cMax     = 11 + 28, &
+                            cMin     = 11 + 29, &
+                            cModulo  = 11 + 30, &
+                            cMod     = 11 + 31, &
+                            cSign    = 11 + 32, &
+                            cIf      = 11 + 33     ! if (three arguments)
 
-    integer, parameter ::   VarBegin = 10 + 34
+    integer, parameter ::   VarBegin = 11 + 34
 
-    ! List of operators for use later: +-*/^=#><][&|@!
-    ! All operators mapped to single character
-    character(len=1), dimension(cAdd:cNeqv), parameter ::  operators = [ '+', &  ! plus
-                                                                         '-', &  ! minus
-                                                                         '*', &  ! multiply
-                                                                         '/', &  ! divide
-                                                                         '^', &  ! power
+    ! All operators mapped to single character; ordered in increasing precedence
+    ! List of operators for use later: +-*/^=#><][&|@!  << original order
+    ! List of operators for use later: @$|&!=#><][+-*/^  << new order
+
+    character(len=*), parameter :: ops_unary_only  = '!'
+    character(len=*), parameter :: ops_unary       = '!+-'
+    character(len=*), parameter :: ops_binary      = '@$|&=#><][+-*/^'
+    character(len=*), parameter :: ops_binary_only = '@$|&=#><][*/^'
+    character(len=*), parameter :: ops_all         = '@$|&!=#><][+-*/^'
+
+    character(len=1), dimension(cNeqv:cPow), parameter ::  operators = [ '@', &  ! *** nonequivalence (.neqv., .xor.)
+                                                                         '$', &  ! *** equivalence (.eqv.)
+                                                                         '|', &  ! *** disjunction (|, .or.)
+                                                                         '&', &  ! *** conjunction (&, .and.)
+                                                                         '!', &  ! *** negation (!, ~, .not.)  *** UNARY ONLY *** Should it be in this list?
                                                                          '=', &  ! *** equal (=, ==, .eq.)
                                                                          '#', &  ! *** not equal (/=, !=, ~=, .ne.)
                                                                          '>', &  ! *** greater than (>, .gt.)
                                                                          '<', &  ! *** less than (<, .lt.)
                                                                          ']', &  ! *** greater than or equal (>=, .ge.)
                                                                          '[', &  ! *** less than or equal (<=, .le.)
-                                                                         '&', &  ! *** and (&, .and.)
-                                                                         '|', &  ! *** or (|, .or.)
-                                                                         '@']    ! *** neqv (.neqv., .xor.)
+                                                                         '+', &  ! plus
+                                                                         '-', &  ! minus
+                                                                         '*', &  ! multiply
+                                                                         '/', &  ! divide
+                                                                         '^'  ]  ! power
 
     character(len=7), dimension(cAbs:cIf), parameter :: functions = [    'abs    ', &
                                                                          'exp    ', &
@@ -532,6 +543,7 @@
     call replace_string ('.ge.',   ']', func)
     call replace_string ('.and.',  '&', func)
     call replace_string ('.or.',   '|', func)
+    call replace_string ('.eqv.',  '$', func)
     call replace_string ('.neqv.', '@', func)
     call replace_string ('.xor.',  '@', func)
     call replace_string ('~',      '!', func)
@@ -1891,8 +1903,9 @@
                 return
             end if
             c = func(j:j)
-            if (any(c == operators)) then
-                call me%add_error(j, ipos, funcstr, 'Multiple operators')
+            ! if (any(c == operators)) then
+            if (scan(c,ops_binary_only)>0) then
+                call me%add_error(j, ipos, funcstr, 'Multiple operators (1)')
                 return
             end if
         end if
@@ -2013,8 +2026,9 @@
                 call me%add_error(j, ipos, funcstr)
                 return
             end if
-            if (any(func(j+1:j+1) == operators)) then
-                call me%add_error(j+1, ipos, funcstr, 'Multiple operators')
+            ! if (any(func(j+1:j+1) == operators)) then
+            if ( scan(func(j+1:j+1), ops_binary_only)>0 ) then
+                call me%add_error(j+1, ipos, funcstr, 'Multiple operators (2)')
                 return
             end if
         else                                                  ! Check for next operand
@@ -2096,7 +2110,7 @@
     integer :: j  !! counter
 
     n = 0
-    do j=cadd,cNeqv
+    do j=cNeqv,cPow
         if (c == operators(j)) then
             n = j
             exit
@@ -2339,6 +2353,7 @@
         case   (cAnd);          me%bytecode_ops(me%bytecodesize)%f => cand_func
         case    (cOr);          me%bytecode_ops(me%bytecodesize)%f => cor_func
         case  (cNeqv);          me%bytecode_ops(me%bytecodesize)%f => cneqv_func
+        case   (cEqv);          me%bytecode_ops(me%bytecodesize)%f => null()
         case   (cNot);          me%bytecode_ops(me%bytecodesize)%f => cnot_func
 
         case   (cabs);          me%bytecode_ops(me%bytecodesize)%f => cabs_func
@@ -2541,7 +2556,7 @@
     end if
 
     ! check for operator in substring: check only base level (k=0), exclude expr. in ()
-    do io=cadd,cNeqv                                          ! increasing priority +-*/^
+    do io=cNeqv,cPow                                          ! increasing priority +-*/^
         k = 0
         do j=e,b,-1
             if (f(j:j) == ')') then
@@ -2550,7 +2565,10 @@
                 k = k-1
             end if
         if (k == 0 .and. f(j:j) == operators(io) .and. is_binary_operator (j, f)) then
-                if (any(f(j:j) == operators(cmul:cNeqv)) .and. (f(b:b) == '-' .or. f(b:b) == '!') ) then ! case 6: f(b:e) = '-...op...' with op > -
+                !! This used to exclude "+" and "-"
+                !! was:  any(f(j:j) == operators(cmul:cPow))
+                !! was:  any(f(j:j) == operators(cNeqv:cPow))
+                if ( (scan(f(j:j),'@$|&!=#><][+-*/^')>0) .and. (f(b:b) == '-' .or. f(b:b) == '!') ) then ! case 6: f(b:e) = '-...op...' with op > -
                     select case (f(b:b))
                     case ('-'); c_unary = cneg
                     case ('!'); c_unary = cnot

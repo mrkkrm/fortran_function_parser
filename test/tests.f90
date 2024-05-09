@@ -606,7 +606,7 @@
     if (abs(truth-parser) <= 1000*epsilon(1.0_wp)) then
         write(*,'(1p,A30,A10,*(G0,1X))') disp_expr, ' PASSED: ', truth
     else
-        write(*,'(1p,A30,A10,*(G0,1X))') disp_expr, ' FAILED: ', truth , parser, parser-truth
+        write(*,'(1p,A30,A10,*(A,G0,1X))') disp_expr, ' FAILED: ', 'Truth: ', truth , 'Parser: ', parser, 'Error: ', parser-truth
         error stop 'error evaluating expression'
     end if
 
@@ -691,7 +691,23 @@
                                                                 '(0 & 0) | (1 & 1)', &
                                                                 '(1 & 0) | (1 & 1)', &
                                                                 '(0 & 1) | (1 & 1)', &
-                                                                '(1 & 1) | (1 & 1)'  ]
+                                                                '(1 & 1) | (1 & 1)', &
+                                                                '( 0 & 0 | 0 & 0 )', &
+                                                                '( 1 & 0 | 0 & 0 )', &
+                                                                '( 0 & 1 | 0 & 0 )', &
+                                                                '( 1 & 1 | 0 & 0 )', &
+                                                                '( 0 & 0 | 1 & 0 )', &
+                                                                '( 1 & 0 | 1 & 0 )', &
+                                                                '( 0 & 1 | 1 & 0 )', &
+                                                                '( 1 & 1 | 1 & 0 )', &
+                                                                '( 0 & 0 | 0 & 1 )', &
+                                                                '( 1 & 0 | 0 & 1 )', &
+                                                                '( 0 & 1 | 0 & 1 )', &
+                                                                '( 1 & 1 | 0 & 1 )', &
+                                                                '( 0 & 0 | 1 & 1 )', &
+                                                                '( 1 & 0 | 1 & 1 )', &
+                                                                '( 0 & 1 | 1 & 1 )', &
+                                                                '( 1 & 1 | 1 & 1 )'  ]
     integer, parameter :: nfunc = size(func)
     character (len=*), dimension(*),  parameter :: var  = ['A', 'B']
     integer, parameter :: nvar = size(var)
@@ -765,22 +781,38 @@
                R( .not. L(B) ), &
                R( .not. L(A) ), &
                R( .not. L(B) ), &
-               0.0_wp, &
-               0.0_wp, &
-               0.0_wp, &
-               1.0_wp, &
-               0.0_wp, &
-               0.0_wp, &
-               0.0_wp, &
-               1.0_wp, &
-               0.0_wp, &
-               0.0_wp, &
-               0.0_wp, &
-               1.0_wp, &
-               1.0_wp, &
-               1.0_wp, &
-               1.0_wp, &
-               1.0_wp  ]
+               R((.false. .and. .false.) .or. (.false. .and. .false.)), &
+               R((.true.  .and. .false.) .or. (.false. .and. .false.)), &
+               R((.false. .and. .true. ) .or. (.false. .and. .false.)), &
+               R((.true.  .and. .true. ) .or. (.false. .and. .false.)), &
+               R((.false. .and. .false.) .or. (.true.  .and. .false.)), &
+               R((.true.  .and. .false.) .or. (.true.  .and. .false.)), &
+               R((.false. .and. .true. ) .or. (.true.  .and. .false.)), &
+               R((.true.  .and. .true. ) .or. (.true.  .and. .false.)), &
+               R((.false. .and. .false.) .or. (.false. .and. .true. )), &
+               R((.true.  .and. .false.) .or. (.false. .and. .true. )), &
+               R((.false. .and. .true. ) .or. (.false. .and. .true. )), &
+               R((.true.  .and. .true. ) .or. (.false. .and. .true. )), &
+               R((.false. .and. .false.) .or. (.true.  .and. .true. )), &
+               R((.true.  .and. .false.) .or. (.true.  .and. .true. )), &
+               R((.false. .and. .true. ) .or. (.true.  .and. .true. )), &
+               R((.true.  .and. .true. ) .or. (.true.  .and. .true. )), &
+               R( .false. .and. .false.  .or.  .false. .and. .false. ), &
+               R( .true.  .and. .false.  .or.  .false. .and. .false. ), &
+               R( .false. .and. .true.   .or.  .false. .and. .false. ), &
+               R( .true.  .and. .true.   .or.  .false. .and. .false. ), &
+               R( .false. .and. .false.  .or.  .true.  .and. .false. ), &
+               R( .true.  .and. .false.  .or.  .true.  .and. .false. ), &
+               R( .false. .and. .true.   .or.  .true.  .and. .false. ), &
+               R( .true.  .and. .true.   .or.  .true.  .and. .false. ), &
+               R( .false. .and. .false.  .or.  .false. .and. .true.  ), &
+               R( .true.  .and. .false.  .or.  .false. .and. .true.  ), &
+               R( .false. .and. .true.   .or.  .false. .and. .true.  ), &
+               R( .true.  .and. .true.   .or.  .false. .and. .true.  ), &
+               R( .false. .and. .false.  .or.  .true.  .and. .true.  ), &
+               R( .true.  .and. .false.  .or.  .true.  .and. .true.  ), &
+               R( .false. .and. .true.   .or.  .true.  .and. .true.  ), &
+               R( .true.  .and. .true.   .or.  .true.  .and. .true.  )  ]
 
     call parser%parse(func, var, .false.)  ! parse and bytecompile function string
     if (parser%error()) then
