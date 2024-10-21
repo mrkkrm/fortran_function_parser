@@ -45,6 +45,8 @@
 
     private
 
+    logical, parameter :: DEBUG = .FALSE.
+
 #ifdef REAL32
     integer,parameter,public :: fparser_rk = real32   !! real kind used by this module [4 bytes]
 #elif REAL64
@@ -167,6 +169,8 @@
                                                                          'sign   ', &
                                                                          'if     ' ]
 
+   character(len=7), dimension(1:cIf), parameter :: allyall = [['Immed'], ['neg'], operators, functions]
+
     ! Specify the number of required arguments each `functions` element must have.
     integer, dimension(cAbs:cIf), parameter :: required_args = [ 1, & ! abs
                                                                  1, & ! exp
@@ -244,6 +248,8 @@
     type stack_func_container
         !! to create an array of the function pointers in the fparser
         procedure(stack_func),pointer,nopass :: f => null()
+        integer :: fcode
+        character(len=:), allocatable :: fname
     end type stack_func_container
 
   !****************************************************************
@@ -252,7 +258,7 @@
 
     type,public :: fparser
 
-        private
+        !private
 
         type(stack_func_container),dimension(:),allocatable :: bytecode_ops  !! array of function pointers
         integer,dimension(:),allocatable :: bytecode  !! array of integers
@@ -267,6 +273,8 @@
 
         type(list_of_errors) :: error_msg       !! list of error messages
 
+        character(len=:), dimension(:), allocatable :: var !! list of variables
+
     contains
 
         private
@@ -277,6 +285,7 @@
         procedure,public :: error
         procedure,public :: print_errors
         procedure,public :: clear_errors
+        procedure,public :: print_stack
 
         procedure :: compile_substr
         procedure :: compile
@@ -323,8 +332,182 @@
         end subroutine stack_func
     end interface
 
+!!!    interface operator (+)
+!!!        procedure :: add_poly
+!!!    end interface
+!!!
+!!!    interface operator (-)
+!!!        procedure :: sub_poly
+!!!    end interface
+!!!
+!!!    interface operator (*)
+!!!        procedure :: mult_poly
+!!!    end interface
+!!!
+!!!    interface operator (/)
+!!!        procedure :: div_poly
+!!!    end interface
+!!!
+!!!    interface operator (**)
+!!!        procedure :: pow_poly
+!!!    end interface
+
     contains
 !*******************************************************************************
+
+!!!    function make_real(x) result(rx)
+!!!        use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan
+!!!        class(*), intent(in) :: x
+!!!        real(wp) :: rx
+!!!        select type (x)
+!!!        type is (real    ( 4)); rx = real(x, kind=wp)
+!!!        type is (real    ( 8)); rx = real(x, kind=wp)
+!!!        type is (real    (16)); rx = real(x, kind=wp)
+!!!        type is (integer ( 4)); rx = real(x, kind=wp)
+!!!        type is (integer ( 8)); rx = real(x, kind=wp)
+!!!        type is (integer (16)); rx = real(x, kind=wp)
+!!!        type is (logical)
+!!!            if (x) then
+!!!                rx = 1.0_wp
+!!!            else
+!!!                rx = 0.0_wp
+!!!            end if
+!!!        class default
+!!!            rx = ieee_value(0.0_wp, ieee_quiet_nan)
+!!!        end select
+!!!    end function make_real
+!!!
+!!!    function make_logical(x) result(lx)
+!!!        class(*), intent(in) :: x
+!!!        logical :: lx
+!!!        select type (x)
+!!!        type is (real    ( 4)); lx = (x /= 0.0_4 )
+!!!        type is (real    ( 8)); lx = (x /= 0.0_8 )
+!!!        type is (real    (16)); lx = (x /= 0.0_16)
+!!!        type is (integer ( 4)); lx = (x /= 0_4   )
+!!!        type is (integer ( 8)); lx = (x /= 0_8   )
+!!!        type is (integer (16)); lx = (x /= 0_16  )
+!!!        type is (logical     ); lx = x
+!!!        class default
+!!!            lx = .false.
+!!!        end select
+!!!    end function make_logical
+!!!
+!!!    function add_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb, val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra + rb
+!!!    end function add_poly
+!!!
+!!!    function sub_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb, val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra - rb
+!!!    end function sub_poly
+!!!
+!!!    function mult_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb, val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra * rb
+!!!    end function mult_poly
+!!!
+!!!    function div_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb, val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra / rb
+!!!    end function div_poly
+!!!
+!!!    function pow_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb, val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra ** rb
+!!!    end function pow_poly
+!!!
+!!!    function neqv_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        logical :: la, lb, val
+!!!        la = make_logical(a)
+!!!        lb = make_logical(b)
+!!!        val = la .neqv. lb
+!!!    end function neqv_poly
+!!!
+!!!    function eqv_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        logical :: la, lb, val
+!!!        la = make_logical(a)
+!!!        lb = make_logical(b)
+!!!        val = la .eqv. lb
+!!!    end function eqv_poly
+!!!
+!!!    function or_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        logical :: la, lb, val
+!!!        la = make_logical(a)
+!!!        lb = make_logical(b)
+!!!        val = la .or. lb
+!!!    end function or_poly
+!!!
+!!!    function and_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        logical :: la, lb, val
+!!!        la = make_logical(a)
+!!!        lb = make_logical(b)
+!!!        val = la .and. lb
+!!!    end function and_poly
+!!!
+!!!    function not_poly(a) result(val)
+!!!        class(*), intent(in) :: a
+!!!        logical :: la, val
+!!!        la = make_logical(a)
+!!!        val = .not. la
+!!!    end function not_poly
+!!!
+!!!    function ge_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb
+!!!        logical :: val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra .ge. rb
+!!!    end function ge_poly
+!!!
+!!!    function gt_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb
+!!!        logical :: val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra .gt. rb
+!!!    end function gt_poly
+!!!
+!!!    function le_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb
+!!!        logical :: val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra .le. rb
+!!!    end function le_poly
+!!!
+!!!    function lt_poly(a,b) result(val)
+!!!        class(*), intent(in) :: a, b
+!!!        real(wp) :: ra, rb
+!!!        logical :: val
+!!!        ra = make_real(a)
+!!!        rb = make_real(b)
+!!!        val = ra .lt. rb
+!!!    end function lt_poly
+
 
 !*******************************************************************************
 !>
@@ -482,6 +665,20 @@
     end subroutine destroy_parser_array
 !*******************************************************************************
 
+    subroutine print_stack (me)
+        implicit none
+        class(fparser),intent(inout) :: me
+        integer :: ii
+        write(*,'("bytecodesize = ",i0)') me%bytecodesize
+        ! write(*,'("immedsize    = ",i0)') me%immedsize
+        ! write(*,'("stacksize    = ",i0)') me%stacksize
+        ! write(*,'("stackptr     = ",i0)') me%stackptr
+        do ii = 1, size(me%bytecode_ops)
+            write(*,'(3x,i3,":",2x,a)') ii, me%bytecode_ops(ii)%fname
+        end do
+        write(*,*)
+    end subroutine print_stack
+
 !*******************************************************************************
 !>
 !  Parse the function string `funcstr` and compile it into bytecode
@@ -511,6 +708,9 @@
 
     !first, initialize:
     call me%destroy()
+
+    !Save list of variables with parser object
+    me%var = var
 
     !if is case insensitive, then convert both to lowercase:
     func = trim(adjustl(funcstr))   ! local copy of function string
@@ -550,6 +750,11 @@
     call replace_string ('.not.',  '!', func)
 
     call remove_spaces (func,ipos)            ! condense function string
+
+    !call replace_string ('++','+',func)
+    !call replace_string ('+-','-',func)
+    !call replace_string ('-+','-',func)
+    !call remove_spaces (func,ipos)            ! condense function string
 
     call me%check_syntax(func,funcstr,tmp_var,ipos)
 
@@ -2306,7 +2511,7 @@
 !>
 !  Add compiled byte to bytecode
 
-    subroutine add_compiled_byte (me, b, num_args)
+    subroutine add_compiled_byte (me, b, num_args, caller)
 
     implicit none
 
@@ -2314,7 +2519,37 @@
     integer,intent(in)            :: b          !! value of byte to be added
     integer, optional, intent(in) :: num_args
 
+    integer, optional, intent(in) :: caller(2)
+    character(len=:), allocatable :: str
+
     integer :: args
+
+    str = 'xxxxxxx'
+
+    !! DEBUG: CALL STACK PRINT CONTROL
+    if (DEBUG.and.present(caller)) then
+        if (b== 1) str = 'val: ***'
+        if (b== 2) str = ' op: unary minus'
+        if (b== 3) str = ' op: .neqv.'
+        if (b== 4) str = ' op: .eqv.'
+        if (b== 5) str = ' op: .or.'
+        if (b== 6) str = ' op: .and.'
+        if (b== 7) str = ' op: .not.'
+        if (b== 8) str = ' op: .eq.'
+        if (b== 9) str = ' op: .ne.'
+        if (b==10) str = ' op: .gt.'
+        if (b==11) str = ' op: .lt.'
+        if (b==12) str = ' op: .ge.'
+        if (b==13) str = ' op: .le.'
+        if (b==14) str = ' op: plus'
+        if (b==15) str = ' op: minus'
+        if (b==16) str = ' op: multiply'
+        if (b==17) str = ' op: divide'
+        if (b==18) str = ' op: power'
+        if (cAbs<=b .and. b<=cIf) str = 'fun: '//functions(b)
+        if (b>cIf) str = 'var: '//me%var(b-varbegin+1)
+        if (caller(1)>=0) write(*,'((i3,2x,i4,2x,a8,2x,a))') caller(1), caller(2), 'add:', str
+    endif
 
     if (present(num_args)) then
         args = num_args
@@ -2335,26 +2570,35 @@
         !set the function pointer:
         ! [this replaces the original code which used
         !  a case statement during the evaluation]
+        ASSOCIATE (op => me%bytecode_ops(me%bytecodesize))
+            op%fcode = b
+            if (b==1) then
+                op%fname = 'value'
+            elseif (cAbs<=b .and. b<=cIf) then
+                op%fname = functions(b)
+            elseif (b>cIf) then
+                op%fname = 'variable: '//me%var(b-varbegin+1)
+            endif
         select case (b)
-        case (cImmed);          me%bytecode_ops(me%bytecodesize)%f => cimmed_func
-        case   (cNeg);          me%bytecode_ops(me%bytecodesize)%f => cneg_func
-        case   (cAdd);          me%bytecode_ops(me%bytecodesize)%f => cadd_func
-        case   (cSub);          me%bytecode_ops(me%bytecodesize)%f => csub_func
-        case   (cMul);          me%bytecode_ops(me%bytecodesize)%f => cmul_func
-        case   (cDiv);          me%bytecode_ops(me%bytecodesize)%f => cdiv_func
-        case   (cPow);          me%bytecode_ops(me%bytecodesize)%f => cpow_func
+        case (cImmed);          me%bytecode_ops(me%bytecodesize)%f => cimmed_func;
+        case   (cNeg);          me%bytecode_ops(me%bytecodesize)%f => cneg_func;   op%fname = 'neg'
+        case   (cAdd);          me%bytecode_ops(me%bytecodesize)%f => cadd_func;   op%fname = 'add'
+        case   (cSub);          me%bytecode_ops(me%bytecodesize)%f => csub_func;   op%fname = 'sub'
+        case   (cMul);          me%bytecode_ops(me%bytecodesize)%f => cmul_func;   op%fname = 'mul'
+        case   (cDiv);          me%bytecode_ops(me%bytecodesize)%f => cdiv_func;   op%fname = 'div'
+        case   (cPow);          me%bytecode_ops(me%bytecodesize)%f => cpow_func;   op%fname = 'pow'
 
-        case    (cEq);          me%bytecode_ops(me%bytecodesize)%f => ceq_func
-        case    (cNe);          me%bytecode_ops(me%bytecodesize)%f => cne_func
-        case    (cGt);          me%bytecode_ops(me%bytecodesize)%f => cgt_func
-        case    (cLt);          me%bytecode_ops(me%bytecodesize)%f => clt_func
-        case    (cGe);          me%bytecode_ops(me%bytecodesize)%f => cge_func
-        case    (cLe);          me%bytecode_ops(me%bytecodesize)%f => cle_func
-        case   (cAnd);          me%bytecode_ops(me%bytecodesize)%f => cand_func
-        case    (cOr);          me%bytecode_ops(me%bytecodesize)%f => cor_func
-        case  (cNeqv);          me%bytecode_ops(me%bytecodesize)%f => cneqv_func
-        case   (cEqv);          me%bytecode_ops(me%bytecodesize)%f => null()
-        case   (cNot);          me%bytecode_ops(me%bytecodesize)%f => cnot_func
+        case    (cEq);          me%bytecode_ops(me%bytecodesize)%f => ceq_func;    op%fname = 'eq'
+        case    (cNe);          me%bytecode_ops(me%bytecodesize)%f => cne_func;    op%fname = 'ne'
+        case    (cGt);          me%bytecode_ops(me%bytecodesize)%f => cgt_func;    op%fname = 'gt'
+        case    (cLt);          me%bytecode_ops(me%bytecodesize)%f => clt_func;    op%fname = 'lt'
+        case    (cGe);          me%bytecode_ops(me%bytecodesize)%f => cge_func;    op%fname = 'ge'
+        case    (cLe);          me%bytecode_ops(me%bytecodesize)%f => cle_func;    op%fname = 'le'
+        case   (cAnd);          me%bytecode_ops(me%bytecodesize)%f => cand_func;   op%fname = 'and'
+        case    (cOr);          me%bytecode_ops(me%bytecodesize)%f => cor_func;    op%fname = 'or'
+        case  (cNeqv);          me%bytecode_ops(me%bytecodesize)%f => cneqv_func;  op%fname = 'neqv'
+        case   (cEqv);          me%bytecode_ops(me%bytecodesize)%f => null();      op%fname = 'eqv'
+        case   (cNot);          me%bytecode_ops(me%bytecodesize)%f => cnot_func;   op%fname = 'not'
 
         case   (cabs);          me%bytecode_ops(me%bytecodesize)%f => cabs_func
         case   (cExp);          me%bytecode_ops(me%bytecodesize)%f => cexp_func
@@ -2388,8 +2632,9 @@
         case(cSign);            me%bytecode_ops(me%bytecodesize)%f => csign_func
 
         case (cIf);             me%bytecode_ops(me%bytecodesize)%f => cif_func
-        case  default;          me%bytecode_ops(me%bytecodesize)%f => cdefault_func
+        case default;           me%bytecode_ops(me%bytecodesize)%f => cdefault_func
         end select
+        END ASSOCIATE
 
     end if
 
@@ -2463,7 +2708,7 @@
 !>
 !  Compile i-th function string `f` into bytecode
 
-    recursive subroutine compile_substr (me, f, b, e, var)
+    recursive subroutine compile_substr (me, f, b, e, var, caller)
 
     implicit none
 
@@ -2480,26 +2725,56 @@
 
     integer :: arg_pos(max_func_args)
     integer :: num_args, iarg, c_unary
+    character (len=*), parameter :: FMT = '(i3,2x,i4,2x,a8,2x,a)'
+
+    integer, optional, intent(in) :: caller(2)
+    integer, save :: level=-1
+    logical :: www
+
+    ! DEBUG: CALL STACK PRINT CONTROL
+    www = .false.
+    if (.not.allocated(me%bytecode)) then
+        level=level+1
+        if (DEBUG.and.(level>=0)) www = .true.
+    endif
+
+    if (www.and.present(caller)) then
+        ! Recursive calls (Levels 1+)
+        write(*,FMT) caller(1), caller(2), 'step:', 'str: '//f(b:e)
+    elseif (www) then
+        ! First call (Level 0)
+        write(*,'(a)') '**************************************************'
+        write(*,'(a)') 'compile_substr progress:'
+        write(*,'(a)') '**************************************************'
+        write(*,FMT) 0, 0, 'start:', 'str: '//f(b:e)
+    end if
 
     ! check for special cases of substring
-    if (f(b:b) == '+') then                                     ! case 1: f(b:e) = '+...'
-        call compile_substr (me, f, b+1, e, var)
-        return
-    elseif (completely_enclosed (f, b, e)) then                 ! case 2: f(b:e) = '(...)'
-        call compile_substr (me, f, b+1, e-1, var)
-        return
+
+    if (f(b:b) == '+') then
+        ! CASE 1: f(b:e) = '+...'
+        call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
+        call log_return(__LINE__); return
+
+    elseif (completely_enclosed (f, b, e)) then
+        ! CASE 2: f(b:e) = '(...)'
+        call compile_substr (me, f, b+1, e-1, var, caller=[level, __LINE__])
+        call log_return(__LINE__); return
+
     elseif (scan(f(b:b),calpha) > 0) then
         n = mathfunction_index (f(b:e), var)
         if (n > 0) then
             b2 = b+index(f(b:e),'(')-1
-            if (completely_enclosed(f, b2, e)) then             ! case 3: f(b:e) = 'fcn(...)'
+            
+            if (completely_enclosed(f, b2, e)) then
+                ! CASE 3: f(b:e) = 'fcn(...)'
 
                 ! Determine the number of function arguments.
                 call find_arg_positions (b2, f, num_args, arg_pos)
 
                 if (num_args > 0) then
                     do iarg = 1, num_args
-                        call compile_substr (me, f, b2+1, arg_pos(iarg), var)
+                        call compile_substr (me, f, b2+1, arg_pos(iarg), var, caller=[level, __LINE__])
                         if (iarg < num_args) then
                             me%stackptr = me%stackptr + 1
                             if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
@@ -2511,31 +2786,38 @@
                     if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
                 end if
 
-                call add_compiled_byte (me, n, num_args)
-                return
+                call add_compiled_byte (me, n, num_args, caller=[level,__LINE__])
+                call log_return(__LINE__); return
             end if
+
         end if
+
     elseif (f(b:b) == '-' .or. f(b:b) == '!') then
         select case (f(b:b))
         case ('-'); c_unary = cneg
         case ('!'); c_unary = cnot
         end select
-        if (completely_enclosed (f, b+1, e)) then               ! case 4: f(b:e) = '-(...)'
-            call compile_substr (me, f, b+2, e-1, var)
-            call add_compiled_byte (me, c_unary)
-            return
+        
+        if (completely_enclosed (f, b+1, e)) then               
+            ! CASE 4: f(b:e) = '-(...)'
+            call compile_substr (me, f, b+2, e-1, var, caller=[level, __LINE__])
+            call add_compiled_byte (me, c_unary, caller=[level, __LINE__])
+            call log_return(__LINE__); return
+        
         elseif (scan(f(b+1:b+1),calpha) > 0) then
             n = mathfunction_index (f(b+1:e), var)
             if (n > 0) then
                 b2 = b+index(f(b+1:e),'(')
-                if (completely_enclosed(f, b2, e)) then          ! case 5: f(b:e) = '-fcn(...)'
+                
+                if (completely_enclosed(f, b2, e)) then
+                    ! CASE 5: f(b:e) = '-fcn(...)'
 
                     ! Determine the number of function arguments.
                     call find_arg_positions (b2, f, num_args, arg_pos)
 
                     if (num_args > 0) then
                         do iarg = 1, num_args
-                            call compile_substr (me, f, b2+1, arg_pos(iarg), var)
+                            call compile_substr (me, f, b2+1, arg_pos(iarg), var, caller=[level, __LINE__])
                             if (iarg < num_args) then
                                 me%stackptr = me%stackptr + 1
                                 if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
@@ -2547,10 +2829,11 @@
                         if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
                     end if
 
-                    call add_compiled_byte (me, n, num_args)
-                    call add_compiled_byte (me, c_unary)
-                    return
+                    call add_compiled_byte (me, n, num_args, caller=[level, __LINE__])
+                    call add_compiled_byte (me, c_unary, caller=[level, __LINE__])
+                    call log_return(__LINE__); return
                 end if
+                
             end if
         end if
     end if
@@ -2564,24 +2847,28 @@
             elseif (f(j:j) == '(') then
                 k = k-1
             end if
-        if (k == 0 .and. f(j:j) == operators(io) .and. is_binary_operator (j, f)) then
+            if (k == 0 .and. f(j:j) == operators(io) .and. is_binary_operator (j, f)) then
                 !! This used to exclude "+" and "-"
                 !! was:  any(f(j:j) == operators(cmul:cPow))
                 !! was:  any(f(j:j) == operators(cNeqv:cPow))
-                if ( (scan(f(j:j),'@$|&!=#><][+-*/^')>0) .and. (f(b:b) == '-' .or. f(b:b) == '!') ) then ! case 6: f(b:e) = '-...op...' with op > -
-                    select case (f(b:b))
-                    case ('-'); c_unary = cneg
-                    case ('!'); c_unary = cnot
-                    end select
-                    call compile_substr (me, f, b+1, e, var)
-                    call add_compiled_byte (me, c_unary)
-                    return
-                else                                                        ! case 7: f(b:e) = '...binop...'
-                    call compile_substr (me, f, b, j-1, var)
-                    call compile_substr (me, f, j+1, e, var)
-                    call add_compiled_byte (me, operator_index(operators(io)))
+                !! *** I removed +-!, &| to see if it fixes the unary operator issue ***
+                if (f(b:b) == '-' .and. (scan(f(j:j),'*/^')>0)) then
+                    ! CASE 6A: f(b:e) = '-...op...' with op > -
+                    call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
+                    call add_compiled_byte (me, cneg, caller=[level, __LINE__])
+                    call log_return(__LINE__); return
+                elseif (f(b:b) == '!' .and. (scan(f(j:j),'=#><][+-*/^')>0)) then
+                    ! CASE 6B: f(b:e) = '!...op...' with op > !
+                    call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
+                    call add_compiled_byte (me, cnot, caller=[level, __LINE__])
+                    call log_return(__LINE__); return
+                else
+                    ! CASE 7: f(b:e) = '...binop...'
+                    call compile_substr (me, f, b, j-1, var, caller=[level, __LINE__])
+                    call compile_substr (me, f, j+1, e, var, caller=[level, __LINE__])
+                    call add_compiled_byte (me, operator_index(operators(io)), caller=[level, __LINE__])
                     me%stackptr = me%stackptr - 1
-                    return
+                    call log_return(__LINE__); return
                 end if
             end if
         end do
@@ -2597,10 +2884,22 @@
         b2 = b2+1
     endif
     n = mathitem_index(me, f(b2:e), var)
-    call add_compiled_byte (me, n)
+    call add_compiled_byte (me, n, caller=[level,__LINE__])
     me%stackptr = me%stackptr + 1
     if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
-    if (b2 > b) call add_compiled_byte (me, c_unary)
+    if (b2 > b) call add_compiled_byte (me, c_unary, caller=[level,__LINE__])
+
+    call log_return(__LINE__); return
+
+    contains
+
+    subroutine log_return(line)
+        integer, intent(in) :: line
+        if(www) then
+            write(*,FMT) level, line, '<return>'
+            level=level-1
+        endif 
+    end subroutine log_return
 
     end subroutine compile_substr
 !*******************************************************************************

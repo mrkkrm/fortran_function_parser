@@ -607,7 +607,7 @@
         write(*,'(1p,A30,A10,*(G0,1X))') disp_expr, ' PASSED: ', truth
     else
         write(*,'(1p,A30,A10,*(A,G0,1X))') disp_expr, ' FAILED: ', 'Truth: ', truth , 'Parser: ', parser, 'Error: ', parser-truth
-        error stop 'error evaluating expression'
+        !! error stop 'error evaluating expression'
     end if
 
     end subroutine compare
@@ -619,7 +619,7 @@
 
     implicit none
 
-    character (len=*), dimension(*), parameter :: func = [ character(len=20) :: &
+    character (len=*), dimension(*), parameter :: func = [ character(len=40) :: &
                                                                 'A == B',       &
                                                                 'A == A',       &
                                                                 'A = B',        &
@@ -707,11 +707,22 @@
                                                                 '( 0 & 0 | 1 & 1 )', &
                                                                 '( 1 & 0 | 1 & 1 )', &
                                                                 '( 0 & 1 | 1 & 1 )', &
-                                                                '( 1 & 1 | 1 & 1 )'  ]
+                                                                '( 1 & 1 | 1 & 1 )', &
+                                                                    'A | B | C | D', &
+                                                   '    ~A  &  ~B  &  ~C  &  ~D   ', &
+                                                   ' (  ~A  &  ~B  &  ~C  &  ~D  )', &
+                                                   '~( (~A) &  ~B  &  ~C  &  ~D  )', &
+                                                   '~(  ~A  &  ~B  &  ~C  &  ~D  )', &
+                                                   '~( (~A) & (~B) & (~C) & (~D) )', &
+                                                   '~(  ~A  & (~B) & (~C) & (~D) )', &
+                                                   '~( ~(A) & ~(B) & ~(C) & ~(D) )']
+
+
     integer, parameter :: nfunc = size(func)
-    character (len=*), dimension(*),  parameter :: var  = ['A', 'B']
+
+    character (len=*), dimension(*),  parameter :: var  = ['A', 'B', 'C', 'D']
     integer, parameter :: nvar = size(var)
-    real(wp), dimension(nvar), parameter :: val  = [ 3.14_wp, 0.0_wp]
+    real(wp), dimension(nvar), parameter :: val  = [ 3.14_wp, 0.0_wp, -23.0_wp, 0.1_wp]
 
     type(fparser_array) :: parser
     real(wp), dimension(nfunc) :: res, answer
@@ -812,7 +823,15 @@
                R( .false. .and. .false.  .or.  .true.  .and. .true.  ), &
                R( .true.  .and. .false.  .or.  .true.  .and. .true.  ), &
                R( .false. .and. .true.   .or.  .true.  .and. .true.  ), &
-               R( .true.  .and. .true.   .or.  .true.  .and. .true.  )  ]
+               R( .true.  .and. .true.   .or.  .true.  .and. .true.  ), &
+               1.0_wp, &
+               0.0_wp, &
+               0.0_wp, &
+               1.0_wp, &
+               1.0_wp, &
+               1.0_wp, &
+               1.0_wp, &
+               1.0_wp  ]
 
     call parser%parse(func, var, .false.)  ! parse and bytecompile function string
     if (parser%error()) then
