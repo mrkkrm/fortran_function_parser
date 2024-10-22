@@ -2729,19 +2729,19 @@
 
     integer, optional, intent(in) :: caller(2)
     integer, save :: level=-1
-    logical :: www
+    logical :: verbose
 
     ! DEBUG: CALL STACK PRINT CONTROL
-    www = .false.
+    verbose = .false.
     if (.not.allocated(me%bytecode)) then
         level=level+1
-        if (DEBUG.and.(level>=0)) www = .true.
+        if (DEBUG) verbose = .true.
     endif
 
-    if (www.and.present(caller)) then
+    if (verbose.and.present(caller)) then
         ! Recursive calls (Levels 1+)
         write(*,FMT) caller(1), caller(2), 'step:', 'str: '//f(b:e)
-    elseif (www) then
+    elseif (verbose) then
         ! First call (Level 0)
         write(*,'(a)') '**************************************************'
         write(*,'(a)') 'compile_substr progress:'
@@ -2895,7 +2895,7 @@
 
     subroutine log_return(line)
         integer, intent(in) :: line
-        if(www) then
+        if(verbose) then
             write(*,FMT) level, line, '<return>'
             level=level-1
         endif 
