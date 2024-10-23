@@ -45,7 +45,8 @@
 
     private
 
-    logical, parameter :: DEBUG = .FALSE.
+    logical, public :: FFP_CHECK_SYNTAX  = .TRUE.
+    logical, public :: FFP_VERBOSE_PARSE = .FALSE.
 
 #ifdef REAL32
     integer,parameter,public :: fparser_rk = real32   !! real kind used by this module [4 bytes]
@@ -68,52 +69,53 @@
     ! [they must have the values that correspond to the array indices below]
     integer, parameter ::   cImmed   =  1
     integer, parameter ::   cNeg     =  2
+    integer, parameter ::   cNot     =  3
 
-    integer, parameter ::   cNeqv    =  3, &  ! Logical Operators
-                            cEqv     =  4, &
-                            cOr      =  5, &
-                            cAnd     =  6, &
-                            cNot     =  7, &
-                            cEq      =  8, &  ! Relational Operators
-                            cNe      =  9, &
-                            cGt      = 10, &
-                            cLt      = 11, &
-                            cGe      = 12, &
-                            cLe      = 13, &
-                            cAdd     = 14, &  ! Arithmetic Operators
-                            cSub     = 15, &
-                            cMul     = 16, &
-                            cDiv     = 17, &
-                            cPow     = 18
+    integer, parameter ::   cNeqv    = cNot +  1, &  ! Logical Operators
+                            cEqv     = cNot +  2, &
+                            cOr      = cNot +  3, &
+                            cAnd     = cNot +  4, &
+                        !!! cNot     = cNot +  5, &  ! Exclude negation (unary operator only)
+                            cEq      = cNot +  5, &  ! Relational Operators
+                            cNe      = cNot +  6, &
+                            cGt      = cNot +  7, &
+                            cLt      = cNot +  8, &
+                            cGe      = cNot +  9, &
+                            cLe      = cNot + 10, &
+                            cAdd     = cNot + 11, &  ! Arithmetic Operators
+                            cSub     = cNot + 12, &
+                            cMul     = cNot + 13, &
+                            cDiv     = cNot + 14, &
+                            cPow     = cNot + 15
 
-    integer, parameter ::   cAbs     = 11 + 8,  &  ! Functions
-                            cExp     = 11 + 9,  &
-                            cLog10   = 11 + 10, &
-                            cLog     = 11 + 11, &
-                            cSqrt    = 11 + 12, &
-                            cSinh    = 11 + 13, &
-                            cCosh    = 11 + 14, &
-                            cTanh    = 11 + 15, &
-                            cSin     = 11 + 16, &
-                            cCos     = 11 + 17, &
-                            cTan     = 11 + 18, &
-                            cAsin    = 11 + 19, &
-                            cAcos    = 11 + 20, &
-                            cAtan2   = 11 + 21, &  ! atan2 must precede atan to prevent aliasing.
-                            cAtan    = 11 + 22, &
-                            cPi      = 11 + 23, &  ! Pi (function with zero arguments)
-                            cCeil    = 11 + 24, &
-                            cFloor   = 11 + 25, &
-                            cGamma   = 11 + 26, &
-                            cHypot   = 11 + 27, &
-                            cMax     = 11 + 28, &
-                            cMin     = 11 + 29, &
-                            cModulo  = 11 + 30, &
-                            cMod     = 11 + 31, &
-                            cSign    = 11 + 32, &
-                            cIf      = 11 + 33     ! if (three arguments)
+    integer, parameter ::   cAbs     = cPow +  1, &  ! Functions
+                            cExp     = cPow +  2, &
+                            cLog10   = cPow +  3, &
+                            cLog     = cPow +  4, &
+                            cSqrt    = cPow +  5, &
+                            cSinh    = cPow +  6, &
+                            cCosh    = cPow +  7, &
+                            cTanh    = cPow +  8, &
+                            cSin     = cPow +  9, &
+                            cCos     = cPow + 10, &
+                            cTan     = cPow + 11, &
+                            cAsin    = cPow + 12, &
+                            cAcos    = cPow + 13, &
+                            cAtan2   = cPow + 14, &  ! atan2 must precede atan to prevent aliasing.
+                            cAtan    = cPow + 15, &
+                            cPi      = cPow + 16, &  ! Pi (function with zero arguments)
+                            cCeil    = cPow + 17, &
+                            cFloor   = cPow + 18, &
+                            cGamma   = cPow + 19, &
+                            cHypot   = cPow + 20, &
+                            cMax     = cPow + 21, &
+                            cMin     = cPow + 22, &
+                            cModulo  = cPow + 23, &
+                            cMod     = cPow + 24, &
+                            cSign    = cPow + 25, &
+                            cIf      = cPow + 26     ! if (three arguments)
 
-    integer, parameter ::   VarBegin = 11 + 34
+    integer, parameter ::   VarBegin = cIf + 1
 
     ! All operators mapped to single character; ordered in increasing precedence
     ! List of operators for use later: +-*/^=#><][&|@!  << original order
@@ -129,7 +131,7 @@
                                                                          '$', &  ! *** equivalence (.eqv.)
                                                                          '|', &  ! *** disjunction (|, .or.)
                                                                          '&', &  ! *** conjunction (&, .and.)
-                                                                         '!', &  ! *** negation (!, ~, .not.)  *** UNARY ONLY *** Should it be in this list?
+                                                                    !!!  '!', &  ! *** negation (!, ~, .not.)  *** UNARY ONLY *** Should it be in this list?
                                                                          '=', &  ! *** equal (=, ==, .eq.)
                                                                          '#', &  ! *** not equal (/=, !=, ~=, .ne.)
                                                                          '>', &  ! *** greater than (>, .gt.)
@@ -168,8 +170,6 @@
                                                                          'mod    ', &
                                                                          'sign   ', &
                                                                          'if     ' ]
-
-   character(len=7), dimension(1:cIf), parameter :: allyall = [['Immed'], ['neg'], operators, functions]
 
     ! Specify the number of required arguments each `functions` element must have.
     integer, dimension(cAbs:cIf), parameter :: required_args = [ 1, & ! abs
@@ -332,182 +332,8 @@
         end subroutine stack_func
     end interface
 
-!!!    interface operator (+)
-!!!        procedure :: add_poly
-!!!    end interface
-!!!
-!!!    interface operator (-)
-!!!        procedure :: sub_poly
-!!!    end interface
-!!!
-!!!    interface operator (*)
-!!!        procedure :: mult_poly
-!!!    end interface
-!!!
-!!!    interface operator (/)
-!!!        procedure :: div_poly
-!!!    end interface
-!!!
-!!!    interface operator (**)
-!!!        procedure :: pow_poly
-!!!    end interface
-
     contains
 !*******************************************************************************
-
-!!!    function make_real(x) result(rx)
-!!!        use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan
-!!!        class(*), intent(in) :: x
-!!!        real(wp) :: rx
-!!!        select type (x)
-!!!        type is (real    ( 4)); rx = real(x, kind=wp)
-!!!        type is (real    ( 8)); rx = real(x, kind=wp)
-!!!        type is (real    (16)); rx = real(x, kind=wp)
-!!!        type is (integer ( 4)); rx = real(x, kind=wp)
-!!!        type is (integer ( 8)); rx = real(x, kind=wp)
-!!!        type is (integer (16)); rx = real(x, kind=wp)
-!!!        type is (logical)
-!!!            if (x) then
-!!!                rx = 1.0_wp
-!!!            else
-!!!                rx = 0.0_wp
-!!!            end if
-!!!        class default
-!!!            rx = ieee_value(0.0_wp, ieee_quiet_nan)
-!!!        end select
-!!!    end function make_real
-!!!
-!!!    function make_logical(x) result(lx)
-!!!        class(*), intent(in) :: x
-!!!        logical :: lx
-!!!        select type (x)
-!!!        type is (real    ( 4)); lx = (x /= 0.0_4 )
-!!!        type is (real    ( 8)); lx = (x /= 0.0_8 )
-!!!        type is (real    (16)); lx = (x /= 0.0_16)
-!!!        type is (integer ( 4)); lx = (x /= 0_4   )
-!!!        type is (integer ( 8)); lx = (x /= 0_8   )
-!!!        type is (integer (16)); lx = (x /= 0_16  )
-!!!        type is (logical     ); lx = x
-!!!        class default
-!!!            lx = .false.
-!!!        end select
-!!!    end function make_logical
-!!!
-!!!    function add_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb, val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra + rb
-!!!    end function add_poly
-!!!
-!!!    function sub_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb, val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra - rb
-!!!    end function sub_poly
-!!!
-!!!    function mult_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb, val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra * rb
-!!!    end function mult_poly
-!!!
-!!!    function div_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb, val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra / rb
-!!!    end function div_poly
-!!!
-!!!    function pow_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb, val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra ** rb
-!!!    end function pow_poly
-!!!
-!!!    function neqv_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        logical :: la, lb, val
-!!!        la = make_logical(a)
-!!!        lb = make_logical(b)
-!!!        val = la .neqv. lb
-!!!    end function neqv_poly
-!!!
-!!!    function eqv_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        logical :: la, lb, val
-!!!        la = make_logical(a)
-!!!        lb = make_logical(b)
-!!!        val = la .eqv. lb
-!!!    end function eqv_poly
-!!!
-!!!    function or_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        logical :: la, lb, val
-!!!        la = make_logical(a)
-!!!        lb = make_logical(b)
-!!!        val = la .or. lb
-!!!    end function or_poly
-!!!
-!!!    function and_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        logical :: la, lb, val
-!!!        la = make_logical(a)
-!!!        lb = make_logical(b)
-!!!        val = la .and. lb
-!!!    end function and_poly
-!!!
-!!!    function not_poly(a) result(val)
-!!!        class(*), intent(in) :: a
-!!!        logical :: la, val
-!!!        la = make_logical(a)
-!!!        val = .not. la
-!!!    end function not_poly
-!!!
-!!!    function ge_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb
-!!!        logical :: val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra .ge. rb
-!!!    end function ge_poly
-!!!
-!!!    function gt_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb
-!!!        logical :: val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra .gt. rb
-!!!    end function gt_poly
-!!!
-!!!    function le_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb
-!!!        logical :: val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra .le. rb
-!!!    end function le_poly
-!!!
-!!!    function lt_poly(a,b) result(val)
-!!!        class(*), intent(in) :: a, b
-!!!        real(wp) :: ra, rb
-!!!        logical :: val
-!!!        ra = make_real(a)
-!!!        rb = make_real(b)
-!!!        val = ra .lt. rb
-!!!    end function lt_poly
-
 
 !*******************************************************************************
 !>
@@ -756,7 +582,7 @@
     !call replace_string ('-+','-',func)
     !call remove_spaces (func,ipos)            ! condense function string
 
-    call me%check_syntax(func,funcstr,tmp_var,ipos)
+    if (FFP_CHECK_SYNTAX) call me%check_syntax(func,funcstr,tmp_var,ipos)
 
     ! Do not compile if `check_syntax` failed.
     if (.not. me%error()) then
@@ -1041,7 +867,7 @@
     subroutine ceq_func(me,ip,dp,sp,val,ierr)
 
     implicit none
-    
+
     class(fparser),intent(inout)     :: me
     integer,intent(in)               :: ip    !! instruction pointer
     integer,intent(inout)            :: dp    !! data pointer
@@ -1056,7 +882,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine ceq_func
 !******************************************************************
 
@@ -1082,7 +908,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine cne_func
 !******************************************************************
 
@@ -1109,7 +935,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine cgt_func
 !******************************************************************
 
@@ -1135,7 +961,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine clt_func
 !******************************************************************
 
@@ -1161,7 +987,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine cge_func
 !******************************************************************
 
@@ -1187,7 +1013,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine cle_func
 !******************************************************************
 
@@ -1213,7 +1039,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine cand_func
 !******************************************************************
 
@@ -1239,7 +1065,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine cor_func
 !******************************************************************
 
@@ -1265,7 +1091,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine cneqv_func
 !******************************************************************
 
@@ -1291,7 +1117,7 @@
     endif
     sp=sp-1
     ierr = 0
-    
+
     end subroutine ceqv_func
 !******************************************************************
 
@@ -1316,7 +1142,7 @@
         me%stack(sp) = zero
     endif
     ierr = 0
-    
+
     end subroutine cnot_func
 !******************************************************************
 
@@ -2101,7 +1927,7 @@
 
         c = func(j:j)
         ! Check for valid operand (must appear)
-        if (c == '-' .or. c == '+' .or. c == '!') then                      ! Check for leading - or +
+        if (c == '-' .or. c == '+' .or. c == '!') then                      ! Check for leading unary operator (+, -, or !)
             j = j+1
             if (j > lFunc) then
                 call me%add_error(j, ipos, funcstr, 'Missing operand')
@@ -2526,28 +2352,30 @@
 
     str = 'xxxxxxx'
 
-    !! DEBUG: CALL STACK PRINT CONTROL
-    if (DEBUG.and.present(caller)) then
-        if (b== 1) str = 'val: ***'
-        if (b== 2) str = ' op: unary minus'
-        if (b== 3) str = ' op: .neqv.'
-        if (b== 4) str = ' op: .eqv.'
-        if (b== 5) str = ' op: .or.'
-        if (b== 6) str = ' op: .and.'
-        if (b== 7) str = ' op: .not.'
-        if (b== 8) str = ' op: .eq.'
-        if (b== 9) str = ' op: .ne.'
-        if (b==10) str = ' op: .gt.'
-        if (b==11) str = ' op: .lt.'
-        if (b==12) str = ' op: .ge.'
-        if (b==13) str = ' op: .le.'
-        if (b==14) str = ' op: plus'
-        if (b==15) str = ' op: minus'
-        if (b==16) str = ' op: multiply'
-        if (b==17) str = ' op: divide'
-        if (b==18) str = ' op: power'
-        if (cAbs<=b .and. b<=cIf) str = 'fun: '//functions(b)
-        if (b>cIf) str = 'var: '//me%var(b-varbegin+1)
+    !! CALL STACK PRINT CONTROL
+    if (FFP_VERBOSE_PARSE.and.present(caller)) then
+        select case (b)
+        case(cImmed   ); str = 'val: ^^^^'
+        case(cNeg     ); str = ' op: uminus'
+        case(cNot     ); str = ' op: .not.'
+        case(cNeqv    ); str = ' op: .neqv.'
+        case(cEqv     ); str = ' op: .eqv.'
+        case(cOr      ); str = ' op: .or.'
+        case(cAnd     ); str = ' op: .and.'
+        case(cEq      ); str = ' op: .eq.'
+        case(cNe      ); str = ' op: .ne.'
+        case(cGt      ); str = ' op: .gt.'
+        case(cLt      ); str = ' op: .lt.'
+        case(cGe      ); str = ' op: .ge.'
+        case(cLe      ); str = ' op: .le.'
+        case(cAdd     ); str = ' op: plus'
+        case(cSub     ); str = ' op: minus'
+        case(cMul     ); str = ' op: multiply'
+        case(cDiv     ); str = ' op: divide'
+        case(cPow     ); str = ' op: power'
+        case(cAbs:cIf ); str = 'fun: '//functions(b)
+        case(VarBegin:); str = 'var: '//me%var(b-VarBegin+1)
+        end select
         if (caller(1)>=0) write(*,'((i3,2x,i4,2x,a8,2x,a))') caller(1), caller(2), 'add:', str
     endif
 
@@ -2725,17 +2553,18 @@
 
     integer :: arg_pos(max_func_args)
     integer :: num_args, iarg, c_unary
-    character (len=*), parameter :: FMT = '(i3,2x,i4,2x,a8,2x,a)'
+    character(len=1) :: f1, f2
 
+    character (len=*), parameter :: FMT = '(i3,2x,i4,2x,a8,2x,a)'
     integer, optional, intent(in) :: caller(2)
     integer, save :: level=-1
     logical :: verbose
 
-    ! DEBUG: CALL STACK PRINT CONTROL
+    ! CALL STACK PRINT CONTROL
     verbose = .false.
     if (.not.allocated(me%bytecode)) then
         level=level+1
-        if (DEBUG) verbose = .true.
+        if (FFP_VERBOSE_PARSE) verbose = .true.
     endif
 
     if (verbose.and.present(caller)) then
@@ -2749,9 +2578,12 @@
         write(*,FMT) 0, 0, 'start:', 'str: '//f(b:e)
     end if
 
+    f1 = f(b:b)
+    f2 = f(b+1:b+1)
+
     ! check for special cases of substring
 
-    if (f(b:b) == '+') then
+    if (f1 == '+') then
         ! CASE 1: f(b:e) = '+...'
         call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
         call log_return(__LINE__); return
@@ -2761,11 +2593,11 @@
         call compile_substr (me, f, b+1, e-1, var, caller=[level, __LINE__])
         call log_return(__LINE__); return
 
-    elseif (scan(f(b:b),calpha) > 0) then
+    elseif (scan(f1,calpha) > 0) then
         n = mathfunction_index (f(b:e), var)
         if (n > 0) then
             b2 = b+index(f(b:e),'(')-1
-            
+
             if (completely_enclosed(f, b2, e)) then
                 ! CASE 3: f(b:e) = 'fcn(...)'
 
@@ -2792,23 +2624,24 @@
 
         end if
 
-    elseif (f(b:b) == '-' .or. f(b:b) == '!') then
-        select case (f(b:b))
+    elseif (f1 == '-' .or. f1 == '!') then
+
+        select case (f1)
         case ('-'); c_unary = cneg
         case ('!'); c_unary = cnot
         end select
-        
-        if (completely_enclosed (f, b+1, e)) then               
+
+        if (completely_enclosed (f, b+1, e)) then
             ! CASE 4: f(b:e) = '-(...)'
             call compile_substr (me, f, b+2, e-1, var, caller=[level, __LINE__])
             call add_compiled_byte (me, c_unary, caller=[level, __LINE__])
             call log_return(__LINE__); return
-        
-        elseif (scan(f(b+1:b+1),calpha) > 0) then
+
+        elseif (scan(f2,calpha) > 0) then
             n = mathfunction_index (f(b+1:e), var)
             if (n > 0) then
                 b2 = b+index(f(b+1:e),'(')
-                
+
                 if (completely_enclosed(f, b2, e)) then
                     ! CASE 5: f(b:e) = '-fcn(...)'
 
@@ -2833,7 +2666,7 @@
                     call add_compiled_byte (me, c_unary, caller=[level, __LINE__])
                     call log_return(__LINE__); return
                 end if
-                
+
             end if
         end if
     end if
@@ -2848,16 +2681,14 @@
                 k = k-1
             end if
             if (k == 0 .and. f(j:j) == operators(io) .and. is_binary_operator (j, f)) then
-                !! This used to exclude "+" and "-"
-                !! was:  any(f(j:j) == operators(cmul:cPow))
-                !! was:  any(f(j:j) == operators(cNeqv:cPow))
-                !! *** I removed +-!, &| to see if it fixes the unary operator issue ***
-                if (f(b:b) == '-' .and. (scan(f(j:j),'*/^')>0)) then
+                !if (f1 == '-' .and. (scan(f(j:j),'*/^')>0)) then   !! Fortran precedence ???
+                if (f1 == '-' .and. (scan(f(j:j),'!*/^')>0)) then  !! MATLAB precedence ???
                     ! CASE 6A: f(b:e) = '-...op...' with op > -
                     call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
                     call add_compiled_byte (me, cneg, caller=[level, __LINE__])
                     call log_return(__LINE__); return
-                elseif (f(b:b) == '!' .and. (scan(f(j:j),'=#><][+-*/^')>0)) then
+                !elseif (f1 == '!' .and. (scan(f(j:j),'=#><][+-*/^')>0)) then  !! Fortran precedence ???
+                elseif (f1 == '!' .and. (scan(f(j:j),'^')>0)) then            !! MATLAB precedence ???
                     ! CASE 6B: f(b:e) = '!...op...' with op > !
                     call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
                     call add_compiled_byte (me, cnot, caller=[level, __LINE__])
@@ -2876,8 +2707,8 @@
 
     ! check for remaining items, i.e. variables or explicit numbers
     b2 = b
-    if (f(b:b) == '-' .or. f(b:b) == '!') then
-        select case (f(b:b))
+    if (f1 == '-' .or. f1 == '!') then
+        select case (f1)
         case ('-'); c_unary = cneg
         case ('!'); c_unary = cnot
         end select
@@ -2898,7 +2729,7 @@
         if(verbose) then
             write(*,FMT) level, line, '<return>'
             level=level-1
-        endif 
+        endif
     end subroutine log_return
 
     end subroutine compile_substr
@@ -2915,41 +2746,52 @@
 
     implicit none
 
-    integer,intent(in)           :: j       !! position of operator
-    character (len=*),intent(in) :: f       !! string
-    logical                      :: res     !! result
+    integer,intent(in)                  :: j    !! position of operator
+    character (len=*),target,intent(in) :: f    !! string
+    logical                             :: res  !! result
 
     integer :: k
     logical :: dflag,pflag
 
+    character(len=1), pointer :: op, left, right, fk
+
+    op    => f(j:j)     ! operator
+    left  => f(j-1:j-1) ! character to the left of the operator
+    right => f(j+1:j+1) ! character to the right of the operator
+    fk    => null()     ! character f(k:k)
+
     res=.true.
-    if (f(j:j) == '+' .or. f(j:j) == '-' .or. f(j:j) == '!') then              ! plus or minus sign:
+    select case (op)
+    case ('!')                                              ! not (always unary)
+        res = .false.
+    case ('+','-')                                          ! plus or minus sign:
         if (j == 1) then                                    ! - leading unary operator ?
             res = .false.
-        elseif (scan(f(j-1:j-1),',+-*/^=#><][&|@!(') > 0) then        ! - other unary operator ?   (or comma from multi-arg functions)
+        elseif (scan(left,',+-*/^=#><][&|@!(') > 0) then    ! - other unary operator ?   (or comma from multi-arg functions)
             res = .false.
-        elseif (scan(f(j+1:j+1),'0123456789') > 0 .and. &   ! - in exponent of real number ?
-                scan(f(j-1:j-1),'eEdD')       > 0) then
+        elseif (scan(right,'0123456789') > 0 .and. &        ! - in exponent of real number ?
+                scan(left, 'eEdD')       > 0) then
             dflag=.false.
             pflag=.false.
             k = j-1
-            do while (k > 1)                                !   step to the left in mantissa
+            loop_k: do while (k > 1)                        !   step to the left in mantissa
                 k = k-1
-                if (scan(f(k:k),'0123456789') > 0) then
+                fk => f(k:k)
+                if (scan(fk,'0123456789') > 0) then
                     dflag=.true.
-                elseif (f(k:k) == '.') then
+                elseif (fk == '.') then
                     if (pflag) then
-                        exit                                !   * exit: 2nd appearance of '.'
+                        exit loop_k                         !   * exit: 2nd appearance of '.'
                     else
                         pflag=.true.                        !   * mark 1st appearance of '.'
                     endif
                 else
-                    exit                                    !   * all other characters
+                    exit loop_k                             !   * all other characters
                 end if
-            end do
-            if (dflag .and. (k == 1 .or. scan(f(k:k),',+-*/^=#><][&|@!(') > 0)) res = .false.  ! need the comma here too ??
+            end do loop_k
+            if (dflag .and. (k == 1 .or. scan(fk,',+-*/^=#><][&|@!(') > 0)) res = .false.  ! need the comma here too ??
         end if
-    end if
+    end select
 
     end function is_binary_operator
 !*******************************************************************************
