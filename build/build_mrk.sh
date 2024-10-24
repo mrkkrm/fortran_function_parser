@@ -3,9 +3,9 @@
 
 rm -f *.mod *.o *.x
 
-flags="-c -g -O0" # "-ffpe-trap=invalid,zero,overflow"
+flags="-c -g -O0 -check bounds -traceback" # "-ffpe-trap=invalid,zero,overflow"
 
-FC='gfortran'
+FC='ifort -diag-disable=10448'
 
 ${FC} ${flags} ../src/error_module.f90
 ${FC} ${flags} ../src/function_parser.F90

@@ -38,13 +38,15 @@
 
     module function_parser
 
-    use error_module,    only: list_of_errors
     use iso_fortran_env
+    use ieee_arithmetic, only: ieee_value, ieee_quiet_nan
+    use error_module, only: list_of_errors
 
     implicit none
 
     private
 
+    logical, public :: FFP_ERROR_NAN     = .TRUE.
     logical, public :: FFP_CHECK_SYNTAX  = .TRUE.
     logical, public :: FFP_VERBOSE_PARSE = .FALSE.
 
@@ -68,14 +70,14 @@
     ! Note: these should be continuous, unique integers:
     ! [they must have the values that correspond to the array indices below]
     integer, parameter ::   cImmed   =  1
-    integer, parameter ::   cNeg     =  2
-    integer, parameter ::   cNot     =  3
+    integer, parameter ::   cNeg     =  2  ! Unary minus
+    integer, parameter ::   cNot     =  3  ! Unary not
 
     integer, parameter ::   cNeqv    = cNot +  1, &  ! Logical Operators
                             cEqv     = cNot +  2, &
                             cOr      = cNot +  3, &
                             cAnd     = cNot +  4, &
-                        !!! cNot     = cNot +  5, &  ! Exclude negation (unary operator only)
+                        !!! cNot     = cNot +  5, &  ! *** Unary not (exclude here?)
                             cEq      = cNot +  5, &  ! Relational Operators
                             cNe      = cNot +  6, &
                             cGt      = cNot +  7, &
@@ -118,8 +120,6 @@
     integer, parameter ::   VarBegin = cIf + 1
 
     ! All operators mapped to single character; ordered in increasing precedence
-    ! List of operators for use later: +-*/^=#><][&|@!  << original order
-    ! List of operators for use later: @$|&!=#><][+-*/^  << new order
 
     character(len=*), parameter :: ops_unary_only  = '!'
     character(len=*), parameter :: ops_unary       = '!+-'
@@ -577,10 +577,13 @@
 
     call remove_spaces (func,ipos)            ! condense function string
 
-    !call replace_string ('++','+',func)
-    !call replace_string ('+-','-',func)
-    !call replace_string ('-+','-',func)
-    !call remove_spaces (func,ipos)            ! condense function string
+    !!! do k = 1,20
+    !!!     call replace_string ('++','+',func)
+    !!!     call replace_string ('+-','-',func)
+    !!!     call replace_string ('-+','-',func)
+    !!!     call replace_string ('--','+',func)
+    !!!     call remove_spaces (func,ipos)
+    !!! end do
 
     if (FFP_CHECK_SYNTAX) call me%check_syntax(func,funcstr,tmp_var,ipos)
 
@@ -620,7 +623,11 @@
         call me%bytecode_ops(ip)%f(me,ip,dp,sp,val,ierr)
         if (ierr/=0) then
             call me%error_msg%add(trim(get_error_message_string(ierr)))
-            res = zero
+            if (FFP_ERROR_NAN) then
+                res = ieee_value(0.0_wp, ieee_quiet_nan)
+            else
+                res = zero
+            end if
             return
         end if
     end do
@@ -2273,7 +2280,7 @@
     character(len=*),intent(in)    :: cb
     character(len=*),intent(inout) :: str
 
-    character(len=len_trim(ca)) :: cax, cbx  !! `len(cax)` must be `len(cbx)`
+    character(len=max(len_trim(ca),len_trim(cb))) :: cax, cbx  !! `len(cax)` must be `len(cbx)`
 
     integer :: j, lca
 
@@ -2350,31 +2357,31 @@
 
     integer :: args
 
-    str = 'xxxxxxx'
-
     !! CALL STACK PRINT CONTROL
     if (FFP_VERBOSE_PARSE.and.present(caller)) then
         select case (b)
-        case(cImmed   ); str = 'val: ^^^^'
-        case(cNeg     ); str = ' op: uminus'
-        case(cNot     ); str = ' op: .not.'
-        case(cNeqv    ); str = ' op: .neqv.'
-        case(cEqv     ); str = ' op: .eqv.'
-        case(cOr      ); str = ' op: .or.'
-        case(cAnd     ); str = ' op: .and.'
-        case(cEq      ); str = ' op: .eq.'
-        case(cNe      ); str = ' op: .ne.'
-        case(cGt      ); str = ' op: .gt.'
-        case(cLt      ); str = ' op: .lt.'
-        case(cGe      ); str = ' op: .ge.'
-        case(cLe      ); str = ' op: .le.'
-        case(cAdd     ); str = ' op: plus'
-        case(cSub     ); str = ' op: minus'
-        case(cMul     ); str = ' op: multiply'
-        case(cDiv     ); str = ' op: divide'
-        case(cPow     ); str = ' op: power'
-        case(cAbs:cIf ); str = 'fun: '//functions(b)
-        case(VarBegin:); str = 'var: '//me%var(b-VarBegin+1)
+        case(cImmed   ); str = '    value: ^^^^'
+        case(cNeg     ); str = ' operator: uminus'
+        case(cNot     ); str = ' operator: .not.'
+        case(cNeqv    ); str = ' operator: .neqv.'
+        case(cEqv     ); str = ' operator: .eqv.'
+        case(cOr      ); str = ' operator: .or.'
+        case(cAnd     ); str = ' operator: .and.'
+        case(cEq      ); str = ' operator: .eq.'
+        case(cNe      ); str = ' operator: .ne.'
+        case(cGt      ); str = ' operator: .gt.'
+        case(cLt      ); str = ' operator: .lt.'
+        case(cGe      ); str = ' operator: .ge.'
+        case(cLe      ); str = ' operator: .le.'
+        case(cAdd     ); str = ' operator: plus'
+        case(cSub     ); str = ' operator: minus'
+        case(cMul     ); str = ' operator: multiply'
+        case(cDiv     ); str = ' operator: divide'
+        case(cPow     ); str = ' operator: power'
+        !case(cNeqv:cPow); str = ' operator: '//operators(b)
+        case(cAbs:cIf ); str = ' function: '//functions(b)
+        case(VarBegin:); str = ' variable: '//me%var(b-VarBegin+1)
+        case default;    str = 'xxxxxxxxx:'
         end select
         if (caller(1)>=0) write(*,'((i3,2x,i4,2x,a8,2x,a))') caller(1), caller(2), 'add:', str
     endif
@@ -2541,7 +2548,7 @@
     implicit none
 
     class(fparser),intent(inout)             :: me
-    character(len=*),intent(in)              :: f     !! function substring
+    character(len=*),target,intent(in)       :: f     !! function substring
     integer,intent(in)                       :: b     !! begin position substring
     integer,intent(in)                       :: e     !! end position substring
     character(len=*),dimension(:),intent(in) :: var   !! array with variable names
@@ -2553,7 +2560,7 @@
 
     integer :: arg_pos(max_func_args)
     integer :: num_args, iarg, c_unary
-    character(len=1) :: f1, f2
+    character(len=1), pointer :: f1
 
     character (len=*), parameter :: FMT = '(i3,2x,i4,2x,a8,2x,a)'
     integer, optional, intent(in) :: caller(2)
@@ -2562,26 +2569,28 @@
 
     ! CALL STACK PRINT CONTROL
     verbose = .false.
-    if (.not.allocated(me%bytecode)) then
-        level=level+1
-        if (FFP_VERBOSE_PARSE) verbose = .true.
+    if (FFP_VERBOSE_PARSE) then
+        if (.not.allocated(me%bytecode)) then
+            ! Print the compile sequence during the first pass (before me%bytecode is allocated)
+            level = level+1
+            verbose = .true.
+        endif
     endif
 
     if (verbose.and.present(caller)) then
         ! Recursive calls (Levels 1+)
-        write(*,FMT) caller(1), caller(2), 'step:', 'str: '//f(b:e)
+        write(*,FMT) caller(1), caller(2), 'step:', 'substring: '//f(b:e)
     elseif (verbose) then
         ! First call (Level 0)
         write(*,'(a)') '**************************************************'
-        write(*,'(a)') 'compile_substr progress:'
+        write(*,'(a)') 'FFP compile_substr progress:'
         write(*,'(a)') '**************************************************'
-        write(*,FMT) 0, 0, 'start:', 'str: '//f(b:e)
-    end if
-
-    f1 = f(b:b)
-    f2 = f(b+1:b+1)
+        write(*,FMT) 0, 0, 'start:', '   string: '//f(b:e)
+    endif
 
     ! check for special cases of substring
+
+    f1 => f(b:b) ! Pointer to first character in function substring
 
     if (f1 == '+') then
         ! CASE 1: f(b:e) = '+...'
@@ -2637,7 +2646,7 @@
             call add_compiled_byte (me, c_unary, caller=[level, __LINE__])
             call log_return(__LINE__); return
 
-        elseif (scan(f2,calpha) > 0) then
+        elseif (scan(f(b+1:b+1),calpha) > 0) then
             n = mathfunction_index (f(b+1:e), var)
             if (n > 0) then
                 b2 = b+index(f(b+1:e),'(')
@@ -2671,7 +2680,7 @@
         end if
     end if
 
-    ! check for operator in substring: check only base level (k=0), exclude expr. in ()
+    ! check for binary operator in substring: check only base level (k=0), exclude expr. in ()
     do io=cNeqv,cPow                                          ! increasing priority +-*/^
         k = 0
         do j=e,b,-1
@@ -2746,52 +2755,54 @@
 
     implicit none
 
-    integer,intent(in)                  :: j    !! position of operator
-    character (len=*),target,intent(in) :: f    !! string
-    logical                             :: res  !! result
+    integer, intent(in)                   :: j    !! position of operator
+    character (len=*), target, intent(in) :: f    !! string
+    logical                               :: res  !! result
 
     integer :: k
-    logical :: dflag,pflag
+    logical :: dflag, pflag
 
     character(len=1), pointer :: op, left, right, fk
 
-    op    => f(j:j)     ! operator
-    left  => f(j-1:j-1) ! character to the left of the operator
-    right => f(j+1:j+1) ! character to the right of the operator
-    fk    => null()     ! character f(k:k)
+    res = .true.
 
-    res=.true.
-    select case (op)
-    case ('!')                                              ! not (always unary)
+    if (j==1) then
+        ! Leading unary operator +, -, or !
+        ! No other operator is valid in (j=1) and should be caught as an error elsewhere
         res = .false.
-    case ('+','-')                                          ! plus or minus sign:
-        if (j == 1) then                                    ! - leading unary operator ?
-            res = .false.
-        elseif (scan(left,',+-*/^=#><][&|@!(') > 0) then    ! - other unary operator ?   (or comma from multi-arg functions)
-            res = .false.
-        elseif (scan(right,'0123456789') > 0 .and. &        ! - in exponent of real number ?
-                scan(left, 'eEdD')       > 0) then
-            dflag=.false.
-            pflag=.false.
-            k = j-1
-            loop_k: do while (k > 1)                        !   step to the left in mantissa
-                k = k-1
+    else
+        op    => f(j:j)     ! operator
+        left  => f(j-1:j-1) ! character to the left of the operator
+        right => f(j+1:j+1) ! character to the right of the operator
+        select case (op)
+        case ('+','-')                                          ! plus or minus sign:
+            if (scan(left,',+-*/^=#><][&|@!(') > 0) then        ! - non-leading unary operator ?   (or comma from multi-arg functions)
+                res = .false.
+            elseif (scan(right,'0123456789') > 0 .and. &        ! - in exponent of real number ?
+                    scan(left, 'eEdD')       > 0) then
+                dflag=.false.
+                pflag=.false.
+                k = j-1
                 fk => f(k:k)
-                if (scan(fk,'0123456789') > 0) then
-                    dflag=.true.
-                elseif (fk == '.') then
-                    if (pflag) then
-                        exit loop_k                         !   * exit: 2nd appearance of '.'
+                loop_k: do while (k > 1)                        !   step to the left in mantissa
+                    k = k-1
+                    fk => f(k:k)
+                    if (scan(fk,'0123456789') > 0) then
+                        dflag=.true.
+                    elseif (fk == '.') then
+                        if (pflag) then
+                            exit loop_k                         !   * exit: 2nd appearance of '.'
+                        else
+                            pflag=.true.                        !   * mark 1st appearance of '.'
+                        endif
                     else
-                        pflag=.true.                        !   * mark 1st appearance of '.'
-                    endif
-                else
-                    exit loop_k                             !   * all other characters
-                end if
-            end do loop_k
-            if (dflag .and. (k == 1 .or. scan(fk,',+-*/^=#><][&|@!(') > 0)) res = .false.  ! need the comma here too ??
-        end if
-    end select
+                        exit loop_k                             !   * all other characters
+                    end if
+                end do loop_k
+                if (dflag .and. (k == 1 .or. scan(fk,',+-*/^=#><][&|@!(') > 0)) res = .false.  ! need the comma here too ??
+            end if
+        end select
+    end if
 
     end function is_binary_operator
 !*******************************************************************************

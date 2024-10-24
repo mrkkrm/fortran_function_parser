@@ -4,8 +4,8 @@ program tests_mrk
 
     implicit none
 
-    character(len=*), dimension(*), parameter :: var = ['A', 'B', 'C', 'D']
-    real(rk),         dimension(*), parameter :: val = [ 3.14_rk, 0.0_rk, -23.0_rk, 0.1_rk]
+    character(len=*), dimension(*), parameter :: var = ['A   ', 'B   ', 'C   ', 'D   ', 'acos']
+    real(rk),         dimension(*), parameter :: val = [ 3.14_rk, 0.0_rk, -23.0_rk, 0.1_rk, 0.45_rk]
 
     character(len=*), parameter :: fun1 = "    ~( ~A & ~B & ~C & ~D ) "
     character(len=*), parameter :: fun2 = "  ( ~( ~A & ~B & ~C & ~D ))"
@@ -15,8 +15,9 @@ program tests_mrk
 
     type(fparser) :: parser, p1, p2
 
-    FFP_VERBOSE_PARSE = .FALSE.
+    FFP_ERROR_NAN     = .TRUE.
     FFP_CHECK_SYNTAX  = .TRUE.
+    FFP_VERBOSE_PARSE = .FALSE.
 
     !call test('~1')
     !call test('~1 & ~1')
@@ -76,6 +77,9 @@ program tests_mrk
     call test( '(!2&0) /= (!(2&0))')
     write(*,*)
 
+    call test( '(-1<3) == ((-1)<3)')
+    call test( '(-1<3) /= (-(1<3))')
+    write(*,*)
 
     call test( '(!1<3) == ((!1)<3)')
     call test( '(!1<3) /= (!(1<3))')
@@ -100,23 +104,27 @@ program tests_mrk
       !write(*,*) isequal(b1,b2)
     end associate
 
+    call test('(-1<3)')
+    call test('(!1<3)')
+    call test('4+++-+-+--+3')
     call test('3-!!+!-0')
     call test('-!0')
     call test('!-0')
-
-
-    call test('(-1<3)')
-    call test('(!1<3)')
     call test('(!-1<3)')
     call test('(0 + !-1<3)')
     call test('(!-1<3)**1')
-
-
     call test('-!0 + 3')
     call test('!-0 + 3')
     write(*,*)
 
     call test('-4**2**2')
+    write(*,*)
+
+    call test('acos*1')     ! variable acos
+    call test('acos(0.1)')  ! function acos()
+    call test('acos(1.5)')  ! function acos() [value error]
+    call test('pi()')       ! function pi()
+    call test('pi')         ! syntax error
     write(*,*)
 
     contains
