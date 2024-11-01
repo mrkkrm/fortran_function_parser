@@ -247,8 +247,8 @@
 
     type stack_func_container
         !! to create an array of the function pointers in the fparser
-        procedure(stack_func),pointer,nopass :: f => null()
         integer :: fcode
+        procedure(stack_func),pointer,nopass :: f => null()
         character(len=:), allocatable :: fname
     end type stack_func_container
 
@@ -287,8 +287,9 @@
         procedure,public :: clear_errors
         procedure,public :: print_stack
 
-        procedure :: compile_substr
         procedure :: compile
+        procedure :: compile_substr
+        procedure :: add_compiled_byte 
         procedure :: check_syntax
         procedure :: add_error
 
@@ -826,15 +827,11 @@
     integer,intent(out)              :: ierr  !! error flag
 
     if (me%stack(sp)==zero) then
-
         ierr = error_div_by_zero    !divide by zero error
-
     else
-
         me%stack(sp-1) = me%stack(sp-1)/me%stack(sp)
         sp=sp-1
         ierr = 0
-
     end if
 
     end subroutine cdiv_func
@@ -2214,18 +2211,19 @@
     integer, optional,intent(out)            :: ibegin  !! start position of variable name
     integer, optional,intent(out)            :: inext   !! position of character after name
 
-    integer :: j,ib,in,lstr
+    integer :: j,ib,in,lstr,mrk
+    character(len=*), parameter :: terminators = ops_all//") " !! variable name terminators
 
     n = 0
     ib = 0
     in = 0
     lstr = len_trim(str)
     if (lstr > 0) then
-        do ib=1,lstr                                   ! search for first character in str
-            if (str(ib:ib) /= ' ') exit                ! when lstr>0 at least 1 char in str
+        do ib=1,lstr                                     ! search for first character in str
+            if (str(ib:ib) /= ' ') exit                  ! when lstr>0 at least 1 char in str
         end do
-        do in=ib,lstr                                  ! search for name terminators
-            if (scan(str(in:in),'+-*/^=#><][&|@!) ') > 0) exit   ! NOTE: all the operators must be here [cAdd,cSub,cMul,cDiv,cPow]
+        do in=ib,lstr                                    ! search for name terminators
+            if (scan(str(in:in), terminators) > 0) exit  ! NOTE: all the operators must be here
         end do
         do j=1,size(var)
             if (str(ib:in-1) == var(j)) then
@@ -2238,6 +2236,45 @@
     if (present(inext))  inext  = in
 
     end function variable_index
+!*******************************************************************************
+
+!*******************************************************************************
+!> return the number of required arguments for a function (zero for operators)
+    function get_required_args(ifun) result(nargs)
+        integer, intent(in) :: ifun
+        integer :: nargs
+        if ( (ifun >= lbound(required_args, 1)) .and. (ifun <= ubound(required_args, 1)) ) then
+            nargs = required_args(ifun)
+        else
+            nargs = 0
+        endif
+    end function get_required_args
+!*******************************************************************************
+
+!*******************************************************************************
+!> return the number of optional arguments for a function (zero for operators)
+    function get_optional_args(ifun) result(nargs)
+        integer, intent(in) :: ifun
+        integer :: nargs
+        if ( (ifun >= lbound(required_args, 1)) .and. (ifun <= ubound(required_args, 1)) ) then
+            nargs = optional_args(ifun)
+        else
+            nargs = 0
+        endif
+    end function get_optional_args
+!*******************************************************************************
+
+!*******************************************************************************
+!> return the number of maximum arguments for a function (zero for operators)
+    function get_max_args(ifun) result(nargs)
+        integer, intent(in) :: ifun
+        integer :: nargs
+        if ( (ifun >= lbound(required_args, 1)) .and. (ifun <= ubound(required_args, 1)) ) then
+            nargs = required_args(ifun) + optional_args(ifun)
+        else
+            nargs = 0
+        endif
+    end function get_max_args
 !*******************************************************************************
 
 !*******************************************************************************
@@ -2389,10 +2426,7 @@
     if (present(num_args)) then
         args = num_args
     else
-        ! The required_args parameter array is not indexed from 1.
-        if ( (b >= lbound(required_args, 1)) .and. (b <= ubound(required_args, 1)) ) then
-            args = required_args(b)
-        endif
+        args = get_required_args(b)
     endif
 
     me%bytecodesize = me%bytecodesize + 1
@@ -2407,68 +2441,63 @@
         !  a case statement during the evaluation]
         ASSOCIATE (op => me%bytecode_ops(me%bytecodesize))
             op%fcode = b
-            if (b==1) then
-                op%fname = 'value'
-            elseif (cAbs<=b .and. b<=cIf) then
-                op%fname = functions(b)
-            elseif (b>cIf) then
-                op%fname = 'variable: '//me%var(b-varbegin+1)
+            if (cAbs<=b .and. b<=cIf) then
+                op%fname = 'function: '//functions(b)
             endif
-        select case (b)
-        case (cImmed);          me%bytecode_ops(me%bytecodesize)%f => cimmed_func;
-        case   (cNeg);          me%bytecode_ops(me%bytecodesize)%f => cneg_func;   op%fname = 'neg'
-        case   (cAdd);          me%bytecode_ops(me%bytecodesize)%f => cadd_func;   op%fname = 'add'
-        case   (cSub);          me%bytecode_ops(me%bytecodesize)%f => csub_func;   op%fname = 'sub'
-        case   (cMul);          me%bytecode_ops(me%bytecodesize)%f => cmul_func;   op%fname = 'mul'
-        case   (cDiv);          me%bytecode_ops(me%bytecodesize)%f => cdiv_func;   op%fname = 'div'
-        case   (cPow);          me%bytecode_ops(me%bytecodesize)%f => cpow_func;   op%fname = 'pow'
+            select case (b)
+            case (cImmed);          op%f => cimmed_func;   op%fname = 'value'
+            case   (cNeg);          op%f => cneg_func;     op%fname = 'operator: uminus'
+            case   (cAdd);          op%f => cadd_func;     op%fname = 'operator: plus'
+            case   (cSub);          op%f => csub_func;     op%fname = 'operator: minus'
+            case   (cMul);          op%f => cmul_func;     op%fname = 'operator: multiply'
+            case   (cDiv);          op%f => cdiv_func;     op%fname = 'operator: divide'
+           !case   (cPow);          op%f => cpow_func;     op%fname = 'operator: power'
+            case   (cPow);  op = stack_func_container(b, cpow_func, 'operator: power')
 
-        case    (cEq);          me%bytecode_ops(me%bytecodesize)%f => ceq_func;    op%fname = 'eq'
-        case    (cNe);          me%bytecode_ops(me%bytecodesize)%f => cne_func;    op%fname = 'ne'
-        case    (cGt);          me%bytecode_ops(me%bytecodesize)%f => cgt_func;    op%fname = 'gt'
-        case    (cLt);          me%bytecode_ops(me%bytecodesize)%f => clt_func;    op%fname = 'lt'
-        case    (cGe);          me%bytecode_ops(me%bytecodesize)%f => cge_func;    op%fname = 'ge'
-        case    (cLe);          me%bytecode_ops(me%bytecodesize)%f => cle_func;    op%fname = 'le'
-        case   (cAnd);          me%bytecode_ops(me%bytecodesize)%f => cand_func;   op%fname = 'and'
-        case    (cOr);          me%bytecode_ops(me%bytecodesize)%f => cor_func;    op%fname = 'or'
-        case  (cNeqv);          me%bytecode_ops(me%bytecodesize)%f => cneqv_func;  op%fname = 'neqv'
-        case   (cEqv);          me%bytecode_ops(me%bytecodesize)%f => null();      op%fname = 'eqv'
-        case   (cNot);          me%bytecode_ops(me%bytecodesize)%f => cnot_func;   op%fname = 'not'
+            case    (cEq);          op%f => ceq_func;      op%fname = 'operator: .eq.'
+            case    (cNe);          op%f => cne_func;      op%fname = 'operator: .ne.'
+            case    (cGt);          op%f => cgt_func;      op%fname = 'operator: .gt.'
+            case    (cLt);          op%f => clt_func;      op%fname = 'operator: .lt.'
+            case    (cGe);          op%f => cge_func;      op%fname = 'operator: .ge.'
+            case    (cLe);          op%f => cle_func;      op%fname = 'operator: .le.'
+            case   (cAnd);          op%f => cand_func;     op%fname = 'operator: .and.'
+            case    (cOr);          op%f => cor_func;      op%fname = 'operator: .or.'
+            case  (cNeqv);          op%f => cneqv_func;    op%fname = 'operator: .neqv.'
+            case   (cEqv);          op%f => ceqv_func;     op%fname = 'operator: .eqv.'  ! Why was this null?
+            case   (cNot);          op%f => cnot_func;     op%fname = 'operator: .not.'
 
-        case   (cabs);          me%bytecode_ops(me%bytecodesize)%f => cabs_func
-        case   (cExp);          me%bytecode_ops(me%bytecodesize)%f => cexp_func
-        case (cLog10);          me%bytecode_ops(me%bytecodesize)%f => clog10_func
-        case   (cLog);          me%bytecode_ops(me%bytecodesize)%f => clog_func
-        case  (cSqrt);          me%bytecode_ops(me%bytecodesize)%f => csqrt_func
-        case  (cSinh);          me%bytecode_ops(me%bytecodesize)%f => csinh_func
-        case  (cCosh);          me%bytecode_ops(me%bytecodesize)%f => ccosh_func
-        case  (cTanh);          me%bytecode_ops(me%bytecodesize)%f => ctanh_func
-        case   (cSin);          me%bytecode_ops(me%bytecodesize)%f => csin_func
-        case   (cCos);          me%bytecode_ops(me%bytecodesize)%f => ccos_func
-        case   (cTan);          me%bytecode_ops(me%bytecodesize)%f => ctan_func
-        case  (cAsin);          me%bytecode_ops(me%bytecodesize)%f => casin_func
-        case  (cAcos);          me%bytecode_ops(me%bytecodesize)%f => cacos_func
-        case (cAtan2);          me%bytecode_ops(me%bytecodesize)%f => catan2_func
-        case  (cAtan)
-            select case (args)
-            case (1);           me%bytecode_ops(me%bytecodesize)%f => catan_func
-            case (2);           me%bytecode_ops(me%bytecodesize)%f => catan2_func
+            case   (cabs);          op%f => cabs_func
+            case   (cExp);          op%f => cexp_func
+            case (cLog10);          op%f => clog10_func
+            case   (cLog);          op%f => clog_func
+            case  (cSqrt);          op%f => csqrt_func
+            case  (cSinh);          op%f => csinh_func
+            case  (cCosh);          op%f => ccosh_func
+            case  (cTanh);          op%f => ctanh_func
+            case   (cSin);          op%f => csin_func
+            case   (cCos);          op%f => ccos_func
+            case   (cTan);          op%f => ctan_func
+            case  (cAsin);          op%f => casin_func
+            case  (cAcos);          op%f => cacos_func
+            case (cAtan2);          op%f => catan2_func
+            case  (cAtan)
+                select case (args)
+                case (1);           op%f => catan_func
+                case (2);           op%f => catan2_func
+                end select
+            case (cPi);             op%f => cPi_func
+            case(cCeil);            op%f => cceil_func
+            case(cFloor);           op%f => cfloor_func
+            case(cGamma);           op%f => cgamma_func
+            case(cHypot);           op%f => chypot_func
+            case(cMax);             op%f => cmax_func
+            case(cMin);             op%f => cmin_func
+            case(cMod);             op%f => cmod_func
+            case(cModulo);          op%f => cmodulo_func
+            case(cSign);            op%f => csign_func
+            case (cIf);             op%f => cif_func
+            case default;           op%f => cdefault_func; op%fname = 'variable: '//me%var(b-varbegin+1)
             end select
-        case (cPi);             me%bytecode_ops(me%bytecodesize)%f => cPi_func
-
-        case(cCeil);            me%bytecode_ops(me%bytecodesize)%f => cceil_func
-        case(cFloor);           me%bytecode_ops(me%bytecodesize)%f => cfloor_func
-        case(cGamma);           me%bytecode_ops(me%bytecodesize)%f => cgamma_func
-        case(cHypot);           me%bytecode_ops(me%bytecodesize)%f => chypot_func
-        case(cMax);             me%bytecode_ops(me%bytecodesize)%f => cmax_func
-        case(cMin);             me%bytecode_ops(me%bytecodesize)%f => cmin_func
-        case(cMod);             me%bytecode_ops(me%bytecodesize)%f => cmod_func
-        case(cModulo);          me%bytecode_ops(me%bytecodesize)%f => cmodulo_func
-        case(cSign);            me%bytecode_ops(me%bytecodesize)%f => csign_func
-
-        case (cIf);             me%bytecode_ops(me%bytecodesize)%f => cif_func
-        case default;           me%bytecode_ops(me%bytecodesize)%f => cdefault_func
-        end select
         END ASSOCIATE
 
     end if
@@ -2560,32 +2589,34 @@
 
     integer :: arg_pos(max_func_args)
     integer :: num_args, iarg, c_unary
-    character(len=1), pointer :: f1
+    character(len=1), pointer :: f1, fj
 
     character (len=*), parameter :: FMT = '(i3,2x,i4,2x,a8,2x,a)'
     integer, optional, intent(in) :: caller(2)
     integer, save :: level=-1
     logical :: verbose
 
-    ! CALL STACK PRINT CONTROL
-    verbose = .false.
-    if (FFP_VERBOSE_PARSE) then
-        if (.not.allocated(me%bytecode)) then
-            ! Print the compile sequence during the first pass (before me%bytecode is allocated)
-            level = level+1
-            verbose = .true.
-        endif
+    ! SET CALL STACK PRINT CONTROL
+    if (FFP_VERBOSE_PARSE .and. .not.allocated(me%bytecode)) then
+        ! Print the compile sequence during the first pass (before me%bytecode is allocated)
+        level = level+1
+        verbose = .true.
+    else
+        verbose = .false.
     endif
 
-    if (verbose.and.present(caller)) then
-        ! Recursive calls (Levels 1+)
-        write(*,FMT) caller(1), caller(2), 'step:', 'substring: '//f(b:e)
-    elseif (verbose) then
-        ! First call (Level 0)
-        write(*,'(a)') '**************************************************'
-        write(*,'(a)') 'FFP compile_substr progress:'
-        write(*,'(a)') '**************************************************'
-        write(*,FMT) 0, 0, 'start:', '   string: '//f(b:e)
+    ! PRINT CALL STACK
+    if (verbose) then
+        if (.not.present(caller)) then
+            ! First call (Level 0)
+            write(*,'(a)') '**************************************************'
+            write(*,'(a)') 'FFP String Compilation Progress:'
+            write(*,'(a)') '**************************************************'
+            write(*,FMT) 0, 0, 'start:', '   string: '//f(b:e)
+        else
+            ! Recursive calls (Levels 1+)
+            write(*,FMT) caller(1), caller(2), 'step:', 'substring: '//f(b:e)
+        endif
     endif
 
     ! check for special cases of substring
@@ -2594,16 +2625,16 @@
 
     if (f1 == '+') then
         ! CASE 1: f(b:e) = '+...'
-        call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
+        call me%compile_substr(f, b+1, e, var, caller=[level, __LINE__])
         call log_return(__LINE__); return
 
-    elseif (completely_enclosed (f, b, e)) then
+    elseif (completely_enclosed(f, b, e)) then
         ! CASE 2: f(b:e) = '(...)'
-        call compile_substr (me, f, b+1, e-1, var, caller=[level, __LINE__])
+        call me%compile_substr(f, b+1, e-1, var, caller=[level, __LINE__])
         call log_return(__LINE__); return
 
     elseif (scan(f1,calpha) > 0) then
-        n = mathfunction_index (f(b:e), var)
+        n = mathfunction_index(f(b:e), var)
         if (n > 0) then
             b2 = b+index(f(b:e),'(')-1
 
@@ -2611,11 +2642,11 @@
                 ! CASE 3: f(b:e) = 'fcn(...)'
 
                 ! Determine the number of function arguments.
-                call find_arg_positions (b2, f, num_args, arg_pos)
+                call find_arg_positions(b2, f, num_args, arg_pos)
 
                 if (num_args > 0) then
                     do iarg = 1, num_args
-                        call compile_substr (me, f, b2+1, arg_pos(iarg), var, caller=[level, __LINE__])
+                        call me%compile_substr(f, b2+1, arg_pos(iarg), var, caller=[level, __LINE__])
                         if (iarg < num_args) then
                             me%stackptr = me%stackptr + 1
                             if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
@@ -2627,7 +2658,7 @@
                     if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
                 end if
 
-                call add_compiled_byte (me, n, num_args, caller=[level,__LINE__])
+                call me%add_compiled_byte(n, num_args, caller=[level,__LINE__])
                 call log_return(__LINE__); return
             end if
 
@@ -2640,14 +2671,14 @@
         case ('!'); c_unary = cnot
         end select
 
-        if (completely_enclosed (f, b+1, e)) then
+        if (completely_enclosed(f, b+1, e)) then
             ! CASE 4: f(b:e) = '-(...)'
-            call compile_substr (me, f, b+2, e-1, var, caller=[level, __LINE__])
-            call add_compiled_byte (me, c_unary, caller=[level, __LINE__])
+            call me%compile_substr(f, b+2, e-1, var, caller=[level, __LINE__])
+            call me%add_compiled_byte(c_unary, caller=[level, __LINE__])
             call log_return(__LINE__); return
 
         elseif (scan(f(b+1:b+1),calpha) > 0) then
-            n = mathfunction_index (f(b+1:e), var)
+            n = mathfunction_index(f(b+1:e), var)
             if (n > 0) then
                 b2 = b+index(f(b+1:e),'(')
 
@@ -2655,11 +2686,11 @@
                     ! CASE 5: f(b:e) = '-fcn(...)'
 
                     ! Determine the number of function arguments.
-                    call find_arg_positions (b2, f, num_args, arg_pos)
+                    call find_arg_positions(b2, f, num_args, arg_pos)
 
                     if (num_args > 0) then
                         do iarg = 1, num_args
-                            call compile_substr (me, f, b2+1, arg_pos(iarg), var, caller=[level, __LINE__])
+                            call me%compile_substr(f, b2+1, arg_pos(iarg), var, caller=[level, __LINE__])
                             if (iarg < num_args) then
                                 me%stackptr = me%stackptr + 1
                                 if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
@@ -2671,8 +2702,8 @@
                         if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
                     end if
 
-                    call add_compiled_byte (me, n, num_args, caller=[level, __LINE__])
-                    call add_compiled_byte (me, c_unary, caller=[level, __LINE__])
+                    call me%add_compiled_byte(n, num_args, caller=[level, __LINE__])
+                    call me%add_compiled_byte(c_unary, caller=[level, __LINE__])
                     call log_return(__LINE__); return
                 end if
 
@@ -2681,32 +2712,31 @@
     end if
 
     ! check for binary operator in substring: check only base level (k=0), exclude expr. in ()
+    ! note: this method does not allow for operators with equal precedence
     do io=cNeqv,cPow                                          ! increasing priority +-*/^
         k = 0
         do j=e,b,-1
-            if (f(j:j) == ')') then
-                k = k+1
-            elseif (f(j:j) == '(') then
-                k = k-1
-            end if
-            if (k == 0 .and. f(j:j) == operators(io) .and. is_binary_operator (j, f)) then
-                !if (f1 == '-' .and. (scan(f(j:j),'*/^')>0)) then   !! Fortran precedence ???
-                if (f1 == '-' .and. (scan(f(j:j),'!*/^')>0)) then  !! MATLAB precedence ???
+            fj => f(j:j)
+            if (fj == ')') k = k+1
+            if (fj == '(') k = k-1
+            if (k == 0 .and. fj == operators(io) .and. is_binary_operator (j, f)) then
+                !if (f1 == '-' .and. (scan(fj,'*/^')>0)) then   !! Fortran-ish precedence ???
+                if (f1 == '-' .and. (scan(fj,'!*/^')>0)) then  !! MATLAB-ish precedence ???
                     ! CASE 6A: f(b:e) = '-...op...' with op > -
-                    call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
-                    call add_compiled_byte (me, cneg, caller=[level, __LINE__])
+                    call me%compile_substr(f, b+1, e, var, caller=[level, __LINE__])
+                    call me%add_compiled_byte(cneg, caller=[level, __LINE__])
                     call log_return(__LINE__); return
-                !elseif (f1 == '!' .and. (scan(f(j:j),'=#><][+-*/^')>0)) then  !! Fortran precedence ???
-                elseif (f1 == '!' .and. (scan(f(j:j),'^')>0)) then            !! MATLAB precedence ???
+                !elseif (f1 == '!' .and. (scan(fj,'=#><][+-*/^')>0)) then  !! Fortran-ish precedence ???
+                elseif (f1 == '!' .and. (scan(fj,'^')>0)) then            !! MATLAB-ish precedence ???
                     ! CASE 6B: f(b:e) = '!...op...' with op > !
-                    call compile_substr (me, f, b+1, e, var, caller=[level, __LINE__])
-                    call add_compiled_byte (me, cnot, caller=[level, __LINE__])
+                    call me%compile_substr(f, b+1, e, var, caller=[level, __LINE__])
+                    call me%add_compiled_byte(cnot, caller=[level, __LINE__])
                     call log_return(__LINE__); return
                 else
                     ! CASE 7: f(b:e) = '...binop...'
-                    call compile_substr (me, f, b, j-1, var, caller=[level, __LINE__])
-                    call compile_substr (me, f, j+1, e, var, caller=[level, __LINE__])
-                    call add_compiled_byte (me, operator_index(operators(io)), caller=[level, __LINE__])
+                    call me%compile_substr(f, b, j-1, var, caller=[level, __LINE__])
+                    call me%compile_substr(f, j+1, e, var, caller=[level, __LINE__])
+                    call me%add_compiled_byte(io, caller=[level, __LINE__])
                     me%stackptr = me%stackptr - 1
                     call log_return(__LINE__); return
                 end if
@@ -2724,10 +2754,10 @@
         b2 = b2+1
     endif
     n = mathitem_index(me, f(b2:e), var)
-    call add_compiled_byte (me, n, caller=[level,__LINE__])
+    call me%add_compiled_byte(n, caller=[level,__LINE__])
     me%stackptr = me%stackptr + 1
     if (me%stackptr > me%stacksize) me%stacksize = me%stacksize + 1
-    if (b2 > b) call add_compiled_byte (me, c_unary, caller=[level,__LINE__])
+    if (b2 > b) call me%add_compiled_byte(c_unary, caller=[level,__LINE__])
 
     call log_return(__LINE__); return
 
@@ -2762,7 +2792,7 @@
     integer :: k
     logical :: dflag, pflag
 
-    character(len=1), pointer :: op, left, right, fk
+    character(len=1), pointer :: op, left, right, fk !! character pointers to improve readability
 
     res = .true.
 
@@ -2775,8 +2805,8 @@
         left  => f(j-1:j-1) ! character to the left of the operator
         right => f(j+1:j+1) ! character to the right of the operator
         select case (op)
-        case ('+','-')                                          ! plus or minus sign:
-            if (scan(left,',+-*/^=#><][&|@!(') > 0) then        ! - non-leading unary operator ?   (or comma from multi-arg functions)
+        case ('+','-')                                          ! other plus or minus sign:
+            if (scan(left,ops_all//",(") > 0) then              ! - non-leading, unary operator ?   (or comma from multi-arg functions)
                 res = .false.
             elseif (scan(right,'0123456789') > 0 .and. &        ! - in exponent of real number ?
                     scan(left, 'eEdD')       > 0) then
@@ -2799,7 +2829,7 @@
                         exit loop_k                             !   * all other characters
                     end if
                 end do loop_k
-                if (dflag .and. (k == 1 .or. scan(fk,',+-*/^=#><][&|@!(') > 0)) res = .false.  ! need the comma here too ??
+                if (dflag .and. (k == 1 .or. scan(fk,ops_all//",(") > 0)) res = .false.  ! need the comma here too ??
             end if
         end select
     end if

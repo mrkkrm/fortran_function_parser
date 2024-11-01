@@ -15,9 +15,11 @@ program tests_mrk
 
     type(fparser) :: parser, p1, p2
 
+    logical, parameter :: PRINT_STACK = .TRUE.
+
     FFP_ERROR_NAN     = .TRUE.
     FFP_CHECK_SYNTAX  = .TRUE.
-    FFP_VERBOSE_PARSE = .FALSE.
+    FFP_VERBOSE_PARSE = .TRUE.
 
     !call test('~1')
     !call test('~1 & ~1')
@@ -127,6 +129,46 @@ program tests_mrk
     call test('pi')         ! syntax error
     write(*,*)
 
+    call test('A.eqv. B')
+    call test('A.eqv. A')
+    call test('A.neqv.B')
+    call test('A.neqv.A')
+    write(*,*)
+
+    call test(' 2 >  2  == 1')
+    call test('(2 >  2) == 1')
+    call test(' 2 > (2  == 1)')
+    write(*,*)
+
+    call test(' 0 ==  0  > 1')
+    call test('(0 ==  0) > 1')   ! This if equal precedence
+    call test(' 0 == (0  > 1)')  ! This if ">" has higher precedence
+    write(*,*)
+
+
+    ! unrelated topic (kth order statistic):
+    k_order: &
+    block
+        integer, parameter :: N = 10
+        real :: x(N)
+        logical :: mask(N)
+        integer :: ii, idx
+        call random_seed()
+        call random_number(x)
+        write(*,*) x
+        mask = .true.
+        write(*,*) "min value: ", minval(x);
+        write(*,*) "max value: ", maxval(x);
+        do ii = 1,N
+            idx = minloc(x, dim=1, mask=mask)
+            write(*,*) ii, idx, x(idx)
+            mask(idx) = .false.
+        end do
+    end block &
+    k_order
+
+
+
     contains
 
     subroutine test(fun)
@@ -138,7 +180,7 @@ program tests_mrk
         else
             call parser%evaluate(val, ans)
             write(*,'(a30," = ",g0)') fun, ans
-            !call parser%print_stack
+            if (PRINT_STACK) call parser%print_stack
         endif
     end subroutine test
 
