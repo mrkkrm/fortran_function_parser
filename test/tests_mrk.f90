@@ -1,6 +1,7 @@
 program tests_mrk
 
     use function_parser, rk => fparser_rk
+    use selection_mod
 
     implicit none
 
@@ -152,7 +153,26 @@ program tests_mrk
         integer, parameter :: N = 10
         real :: x(N)
         logical :: mask(N)
-        integer :: ii, idx
+        integer :: ii, idx, sz
+        integer, allocatable :: seed(:)
+        call random_seed(size=sz)
+        allocate(seed(sz))
+        call random_seed(put=[04211979,1])
+        call random_seed(get=seed); write(*,*) "seed = ", seed
+        call random_number(x)
+        call random_seed(get=seed); write(*,*) "seed = ", seed
+        call random_number(x)
+        call random_seed(get=seed); write(*,*) "seed = ", seed
+        call random_number(x)
+        call random_seed(get=seed); write(*,*) "seed = ", seed
+        call random_number(x)
+
+        write(*,*)
+        write(*,*) "  2**3**2  = ",  2**3**2
+        write(*,*) "(2**3)**2  = ", (2**3)**2, "Matlab"   !! Matlab answer
+        write(*,*) " 2**(3**2) = ", 2**(3**2), "Fortran"  !! Fortran answer
+        write(*,*)
+
         call random_seed()
         call random_number(x)
         write(*,*) x
@@ -167,6 +187,31 @@ program tests_mrk
     end block &
     k_order
 
+    BLOCK
+        integer, parameter :: N=100, REP=15, k=10
+        real(8) :: x(N), val1, val2
+        integer :: ii
+        call random_seed()
+        write(*,*) "***********************************"
+        do ii = 1, REP
+            call random_number(x)
+            x = 100*x
+            val1 = crude_select(x,k)
+            val2 = quick_select(x,k)
+            write(*,'(2x,i2,1x,2(f9.2,2x),2(i3,2x))') &
+              ii, val1, val2, count(x<=val1), count(x<=val2)
+        end do
+        write(*,*) "***********************************"
+        do ii = 1, REP
+            call random_number(x)
+            x = 100*x
+            val1 = crude_select(x,-k)
+            val2 = quick_select(x,-k)
+            write(*,'(2x,i2,1x,2(f9.2,2x),2(i3,2x))') &
+              ii, val1, val2, count(x>=val1), count(x>=val2)
+        end do
+        write(*,*) "***********************************"
+    END BLOCK
 
 
     contains

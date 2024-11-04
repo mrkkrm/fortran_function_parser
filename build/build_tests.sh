@@ -13,3 +13,4 @@ ${FC} ${flags} ../test/tests.f90
 ${FC} function_parser.o error_module.o tests.o -o tests.x
 
 ./tests.x
+

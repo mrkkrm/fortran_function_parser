@@ -1,0 +1,29 @@
+    ! Contained procedures for CRUDE_SELECT
+
+    !  integer,  parameter       :: ak = {KIND}
+    !  integer,  intent(in)      :: k
+    !  {TYPE}(ak), intent(inout) :: array(:)
+    !  {TYPE}(ak)                :: val
+
+    subroutine select
+
+        integer :: ii, loc
+        logical, allocatable :: mask(:)
+
+        allocate(mask(size(array)), source=.true.)
+        if (k>0) then
+            ! Ascending (k-th smallest)
+            do ii = 1,k
+                loc = minloc(array, dim=1, mask=mask)
+                mask(loc) = .false.
+            end do
+        else
+            ! Descending (k-th largest)
+            do ii = 1,abs(k)
+                loc = maxloc(array, dim=1, mask=mask)
+                mask(loc) = .false.
+            end do
+        end if
+        val = array(loc)
+
+    end subroutine select

@@ -1,0 +1,74 @@
+    ! Contained procedures for QUICK_SELECT
+
+    !  integer,  parameter       :: ak = {KIND}
+    !  integer,  intent(in)      :: k
+    !  {TYPE}(ak), intent(inout) :: array(:)
+    !  {TYPE}(ak)                :: val
+    !  {TYPE}(ak)                :: tempValue, pivotValue
+
+    subroutine select
+        integer :: L, R, pivotIndex, abs_k
+        !
+        L = 1
+        R = size(array)
+        abs_k = abs(k)
+        SEARCH: do
+            if (L==R) then
+                val = array(L)
+                exit SEARCH
+            end if
+            ! Select a piviot index
+            ! TODO: Select a better pivot index
+            pivotIndex = L + (R-L)/2
+            call partition(L,R,pivotIndex)
+            if (abs_k==pivotIndex) then
+                val = array(abs_k)
+                exit SEARCH
+            else if (abs_k<pivotIndex) then
+                R = pivotIndex - 1
+            else
+                L = pivotIndex + 1
+            end if
+        end do &
+        SEARCH
+    end subroutine select
+
+    subroutine partition(L,R,pivotIndex)
+        !> Partition procedure for Quickselect
+        integer, intent(inout) :: pivotIndex
+        integer, intent(in)    :: L, R
+        !
+        integer  :: jj, ii
+        !
+        pivotValue = array(pivotIndex)
+        call swap(pivotIndex,R)
+        jj = L
+        if (k>0) then
+            ! Ascending (k-th smallest)
+            do ii = L, R-1
+                if (array(ii)<pivotValue) then
+                    if (ii/=jj) call swap(ii,jj)
+                    jj = jj + 1
+                end if
+            end do
+        else
+            ! Descending (k-th largest)
+            do ii = L, R-1
+                if (array(ii)>pivotValue) then
+                    if (ii/=jj) call swap(ii,jj)
+                    jj = jj + 1
+                end if
+            end do
+        end if
+        call swap(jj,R)
+        pivotIndex = jj
+    end subroutine partition
+
+    subroutine swap(i,j)
+        !> Swap procedure for Quickselect
+        integer, intent(in) :: i, j
+        !
+        tempValue = array(i)
+        array(i) = array(j)
+        array(j) = tempValue
+    end subroutine swap
